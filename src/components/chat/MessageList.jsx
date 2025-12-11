@@ -14,7 +14,7 @@ export default function MessageList({ messages, loading, currentUserId, onLoadMo
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 border-l border-r border-[#F68537]">
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#F68537] mx-auto mb-3"></div>
@@ -27,7 +27,7 @@ export default function MessageList({ messages, loading, currentUserId, onLoadMo
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 border-l border-r border-[#F68537]">
         <div className="flex items-center justify-center h-full">
           <div className="text-center p-8">
             <div className="text-6xl mb-4">👋</div>
@@ -42,7 +42,7 @@ export default function MessageList({ messages, loading, currentUserId, onLoadMo
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto p-4 border-l border-r border-[#F68537]">
       <div className="space-y-3">
         {messages.map((msg) => (
           <MessageItem 
