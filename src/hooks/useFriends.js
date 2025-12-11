@@ -4,11 +4,27 @@ import { supabase } from '../supabase/client';
 export const useFriends = () => {
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    loadFriends();
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    getUser();
+  }, []);
 
-    const channel = supabase
+  useEffect(() => {
+    if (!currentUser) return;
+    loadFriends();
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log('🔔 Setting up real-time subscriptions for friend list...');
+
+    const friendshipChannel = supabase
       .channel('friendships-updates')
       .on('postgres_changes',
         {
@@ -17,16 +33,69 @@ export const useFriends = () => {
           table: 'friendships'
         },
         (payload) => {
-          console.log('Friendship change detected:', payload);
+          console.log('👥 Friendship change detected:', payload);
           loadFriends();
         }
       )
       .subscribe();
 
+    const messageChannel = supabase
+      .channel('friend-list-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
+          const newMsg = payload.new;
+          
+          if (newMsg.receiver_id === currentUser.id) {
+            console.log('📨 Received message, +1 unread');
+            const friendId = newMsg.sender_id;
+            setFriends(prev => 
+              prev.map(friend => 
+                friend.id === friendId 
+                  ? { ...friend, unreadCount: (friend.unreadCount || 0) + 1 }
+                  : friend
+              )
+            );
+          } else if (newMsg.sender_id === currentUser.id) {
+            console.log('📤 Sent message, no update');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
+          const updatedMsg = payload.new;
+          
+          if (updatedMsg.is_read && updatedMsg.receiver_id === currentUser.id) {
+            console.log('✅ Message read, -1 unread');
+            const friendId = updatedMsg.sender_id;
+            setFriends(prev => 
+              prev.map(friend => 
+                friend.id === friendId 
+                  ? { ...friend, unreadCount: Math.max(0, (friend.unreadCount || 0) - 1) }
+                  : friend
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(friendshipChannel);
+      supabase.removeChannel(messageChannel);
     };
-  }, []);
+  }, [currentUser]);
 
   const loadFriends = async () => {
     setLoading(true);
@@ -57,8 +126,6 @@ export const useFriends = () => {
           )
         `)
         .eq('user_id', user.id);
-
-      console.log('Friendships result:', { data: friendships, error: friendshipError });
 
       if (friendshipError) {
         console.error('❌ Friendship error:', friendshipError);

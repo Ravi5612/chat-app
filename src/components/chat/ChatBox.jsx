@@ -50,6 +50,28 @@ export default function ChatBox({ selectedFriend }) {
     };
   }, [selectedFriend?.id, currentUser?.id]);
 
+  // Mark messages as delivered when chat is opened
+  useEffect(() => {
+    const markAsDelivered = async () => {
+      if (!selectedFriend || !currentUser) return;
+
+      const { error } = await supabase
+        .from('messages')
+        .update({ status: 'delivered' })
+        .eq('receiver_id', currentUser.id)
+        .eq('sender_id', selectedFriend.id)
+        .eq('status', 'sent');
+
+      if (error) {
+        console.error('❌ Error marking as delivered:', error);
+      } else {
+        console.log('✅ Messages marked as delivered');
+      }
+    };
+
+    markAsDelivered();
+  }, [selectedFriend, currentUser]);
+
   const loadMessages = async () => {
     if (!selectedFriend || !currentUser) return;
 
@@ -88,18 +110,19 @@ export default function ChatBox({ selectedFriend }) {
       console.log('⏭️ Already subscribed, skipping...');
       return;
     }
-
+  
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
-
+  
     console.log('🔔 Subscribing to real-time messages for:', selectedFriend.name);
-
+  
     const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
-
+  
     const channel = supabase
       .channel(channelName)
+      // Listen for new messages (INSERT)
       .on(
         'postgres_changes',
         {
@@ -123,12 +146,49 @@ export default function ChatBox({ selectedFriend }) {
               return [...current, newMsg];
             });
             
-            if (newMsg.sender_id === selectedFriend.id) {
-              supabase
-                .from('messages')
-                .update({ is_read: true })
-                .eq('id', newMsg.id);
+            // ✅ FIXED: Only mark as 'delivered', NOT read
+            if (newMsg.sender_id === selectedFriend.id && newMsg.status === 'sent') {
+              setTimeout(async () => {
+                await supabase
+                  .from('messages')
+                  .update({ status: 'delivered' })
+                  .eq('id', newMsg.id)
+                  .eq('status', 'sent');
+                
+                console.log(`✅ Marked message ${newMsg.id} as delivered`);
+              }, 100);
             }
+          }
+        }
+      )
+      // Listen for status updates (UPDATE) - Real-time tick changes
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
+          console.log('🔄 Message status updated:', payload.new);
+          
+          const updatedMsg = payload.new;
+          
+          // Check if this message belongs to current conversation
+          if (
+            (updatedMsg.sender_id === currentUser.id && updatedMsg.receiver_id === selectedFriend.id) ||
+            (updatedMsg.sender_id === selectedFriend.id && updatedMsg.receiver_id === currentUser.id)
+          ) {
+            // Update message status in real-time
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === updatedMsg.id
+                  ? { ...msg, status: updatedMsg.status, is_read: updatedMsg.is_read }
+                  : msg
+              )
+            );
+            
+            console.log(`✅ Updated message ${updatedMsg.id} to status: ${updatedMsg.status}`);
           }
         }
       )
@@ -138,7 +198,7 @@ export default function ChatBox({ selectedFriend }) {
           isSubscribedRef.current = true;
         }
       });
-
+  
     channelRef.current = channel;
   };
 
@@ -171,6 +231,22 @@ export default function ChatBox({ selectedFriend }) {
     if (!messageText && !selectedFile) return;
     if (!selectedFriend || !currentUser) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      sender_id: currentUser.id,
+      receiver_id: selectedFriend.id,
+      message: messageText || '',
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      file_url: null,
+      file_name: null,
+      file_type: null,
+      file_size: null
+    };
+
+    // Optimistic UI update
+    setMessages(prev => [...prev, tempMessage]);
     setSending(true);
 
     try {
@@ -184,7 +260,7 @@ export default function ChatBox({ selectedFriend }) {
         setSelectedFile(null);
       }
 
-      // Create message
+      // Create message with 'sent' status
       const { data, error } = await supabase
         .from('messages')
         .insert([
@@ -193,6 +269,7 @@ export default function ChatBox({ selectedFriend }) {
             receiver_id: selectedFriend.id,
             message: messageText || (fileData ? `Sent ${fileData.name}` : ''),
             is_read: false,
+            status: 'sent',
             file_url: fileData?.url || null,
             file_name: fileData?.name || null,
             file_type: fileData?.type || null,
@@ -206,12 +283,10 @@ export default function ChatBox({ selectedFriend }) {
 
       console.log('✅ Message sent:', data);
 
-      setMessages(prev => {
-        if (prev.some(m => m.id === data.id)) {
-          return prev;
-        }
-        return [...prev, data];
-      });
+      // Replace temp message with real message
+      setMessages(prev => 
+        prev.map(msg => msg.id === tempId ? data : msg)
+      );
 
       // Create notification
       await supabase
@@ -228,9 +303,34 @@ export default function ChatBox({ selectedFriend }) {
 
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      
+      // Remove failed message
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      
       alert('Failed to send message: ' + error.message);
     } finally {
       setSending(false);
+    }
+  };
+
+  // Mark message as read when visible on screen
+  const handleMessageVisible = async (messageId) => {
+    if (!currentUser) return;
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ 
+        status: 'read',
+        is_read: true
+      })
+      .eq('id', messageId)
+      .eq('receiver_id', currentUser.id)
+      .eq('status', 'delivered');
+
+    if (error) {
+      console.error('❌ Error marking as read:', error);
+    } else {
+      console.log('✅ Message marked as read:', messageId);
     }
   };
 
@@ -262,6 +362,7 @@ export default function ChatBox({ selectedFriend }) {
         messages={messages}
         loading={loading}
         currentUserId={currentUser?.id}
+        onMessageVisible={handleMessageVisible}
       />
 
       {/* Chat Input */}

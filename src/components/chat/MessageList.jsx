@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import MessageItem from './MessageItem';
 
-export default function MessageList({ messages, loading, currentUserId, onLoadMore }) {
+export default function MessageList({ messages, loading, currentUserId, onLoadMore, onMessageVisible }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export default function MessageList({ messages, loading, currentUserId, onLoadMo
             key={msg.id} 
             message={msg} 
             isCurrentUser={msg.sender_id === currentUserId}
+            onMessageVisible={onMessageVisible}
           />
         ))}
         <div ref={messagesEndRef} />

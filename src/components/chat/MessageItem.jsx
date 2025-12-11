@@ -1,7 +1,33 @@
-export default function MessageItem({ message, isCurrentUser }) {
+import { useEffect, useRef } from 'react';
+import MessageStatus from './MessageStatus';
+
+export default function MessageItem({ message, isCurrentUser, onMessageVisible }) {
   const isSent = isCurrentUser;
   const isImage = message.file_type?.startsWith('image/');
   const isVideo = message.file_type?.startsWith('video/');
+  const messageRef = useRef(null);
+
+  // Intersection Observer to detect when message is visible
+  useEffect(() => {
+    if (!messageRef.current || isSent || message.status === 'read') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // Message is visible on screen
+            onMessageVisible?.(message.id);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.5 } // 50% visible hone pe trigger
+    );
+
+    observer.observe(messageRef.current);
+
+    return () => observer.disconnect();
+  }, [message.id, message.status, isSent, onMessageVisible]);
 
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -26,7 +52,7 @@ export default function MessageItem({ message, isCurrentUser }) {
   };
 
   return (
-    <div className={`flex ${isSent ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+    <div ref={messageRef} className={`flex ${isSent ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
       <div
         className={`max-w-[70%] md:max-w-[60%] rounded-2xl px-4 py-2.5 shadow-sm border ${
           isSent
@@ -40,7 +66,7 @@ export default function MessageItem({ message, isCurrentUser }) {
             <img 
               src={message.file_url} 
               alt={message.file_name}
-              className="max-w-full max-h-[300px] md:max-h-[400px] w-auto h-auto object-contain rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-[#F68537]"
+              className="max-w-[280px] max-h-[200px] md:max-w-[350px] md:max-h-[280px] w-auto h-auto object-contain rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-[#F68537]"
             />
           </a>
         )}
@@ -50,7 +76,7 @@ export default function MessageItem({ message, isCurrentUser }) {
           <video 
             src={message.file_url} 
             controls
-            className="max-w-full max-h-[300px] md:max-h-[400px] w-auto h-auto rounded-lg mb-2 border border-[#F68537]"
+            className="max-w-[280px] max-h-[200px] md:max-w-[350px] md:max-h-[280px] w-auto h-auto rounded-lg mb-2 border border-[#F68537]"
           />
         )}
 
@@ -81,9 +107,11 @@ export default function MessageItem({ message, isCurrentUser }) {
           </p>
         )}
 
-        <p className={`text-xs mt-1 ${isSent ? 'text-white/80' : 'text-gray-500'}`}>
-          {formatTime(message.created_at)}
-        </p>
+        {/* Time and Status */}
+        <div className={`flex items-center justify-end gap-1 text-xs mt-1 ${isSent ? 'text-white/80' : 'text-gray-500'}`}>
+          <span>{formatTime(message.created_at)}</span>
+          {isSent && <MessageStatus status={message.status || 'sent'} />}
+        </div>
       </div>
     </div>
   );
