@@ -8,15 +8,19 @@ export default function PersistentLayout() {
   const [searchResults, setSearchResults] = useState(null);
 
   const handleSearch = (results, currentUserId) => {
+    console.log('🔍 Search results in layout:', results);
     setSearchResults({ results, currentUserId });
   };
 
   const handleClearSearch = () => {
+    console.log('🧹 Clearing search');
     setSearchResults(null);
   };
 
   const handleSelectFriend = (friend) => {
+    console.log('👤 Selected friend:', friend);
     setSelectedFriend(friend);
+    setSearchResults(null); // Clear search when selecting friend
   };
 
   return (

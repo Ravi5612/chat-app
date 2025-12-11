@@ -9,35 +9,49 @@ export default function ChatBox({ selectedFriend }) {
   const [currentUser, setCurrentUser] = useState(null);
   const messagesEndRef = useRef(null);
   const channelRef = useRef(null);
+  const isSubscribedRef = useRef(false); // ✅ Track subscription state
 
+  // ✅ Get current user ONCE
   useEffect(() => {
-    getCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    if (selectedFriend && currentUser) {
-      loadMessages();
-      subscribeToMessages();
-    }
-
-    // Cleanup previous channel
-    return () => {
-      if (channelRef.current) {
-        console.log('Unsubscribing from channel');
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('✅ Current user loaded:', user.id);
+        setCurrentUser(user);
+      } else {
+        console.error('❌ User not found');
       }
     };
-  }, [selectedFriend, currentUser]);
+    getCurrentUser();
+  }, []); // Empty dependency - runs once only
 
+  // ✅ Load messages and subscribe when friend OR user changes
+  useEffect(() => {
+    if (!selectedFriend || !currentUser) {
+      console.log('⏸️ Waiting for friend or user...', { selectedFriend, currentUser });
+      return;
+    }
+
+    console.log('🔄 Loading chat with:', selectedFriend.name);
+    
+    loadMessages();
+    subscribeToMessages();
+
+    // Cleanup on unmount or when friend changes
+    return () => {
+      if (channelRef.current) {
+        console.log('🧹 Cleaning up channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        isSubscribedRef.current = false;
+      }
+    };
+  }, [selectedFriend?.id, currentUser?.id]); // ✅ Only re-run when IDs change
+
+  // ✅ Auto-scroll when messages update
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const getCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
-  };
 
   const loadMessages = async () => {
     if (!selectedFriend || !currentUser) return;
@@ -52,9 +66,10 @@ export default function ChatBox({ selectedFriend }) {
 
       if (error) throw error;
 
+      console.log('✅ Loaded messages:', data?.length || 0);
       setMessages(data || []);
 
-      // Mark messages as read
+      // Mark as read
       await supabase
         .from('messages')
         .update({ is_read: true })
@@ -63,7 +78,7 @@ export default function ChatBox({ selectedFriend }) {
         .eq('is_read', false);
 
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('❌ Error loading messages:', error);
     } finally {
       setLoading(false);
     }
@@ -71,59 +86,66 @@ export default function ChatBox({ selectedFriend }) {
 
   const subscribeToMessages = () => {
     if (!selectedFriend || !currentUser) return;
+    
+    // ✅ Prevent duplicate subscriptions
+    if (isSubscribedRef.current && channelRef.current) {
+      console.log('⏭️ Already subscribed, skipping...');
+      return;
+    }
 
     // Remove previous channel if exists
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
-    console.log('🔔 Subscribing to real-time messages...');
+    console.log('🔔 Subscribing to real-time messages for:', selectedFriend.name);
 
-    // Create new channel
+    // Create unique channel name
+    const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
+
     const channel = supabase
-      .channel(`chat-${selectedFriend.id}-${currentUser.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${selectedFriend.id}`
+          table: 'messages'
         },
         (payload) => {
-          console.log('✅ New message received:', payload.new);
+          console.log('📨 New message received:', payload.new);
           
-          if (payload.new.receiver_id === currentUser.id) {
-            // Add message to state
-            setMessages((current) => [...current, payload.new]);
+          const newMsg = payload.new;
+          
+          // Only add if message is relevant to this chat
+          if (
+            (newMsg.sender_id === selectedFriend.id && newMsg.receiver_id === currentUser.id) ||
+            (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedFriend.id)
+          ) {
+            setMessages((current) => {
+              // Prevent duplicates
+              if (current.some(m => m.id === newMsg.id)) {
+                return current;
+              }
+              return [...current, newMsg];
+            });
             
-            // Mark as read immediately
-            supabase
-              .from('messages')
-              .update({ is_read: true })
-              .eq('id', payload.new.id);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${currentUser.id}`
-        },
-        (payload) => {
-          console.log('✅ Your message sent:', payload.new);
-          
-          if (payload.new.receiver_id === selectedFriend.id) {
-            // Message already added when sending, no need to add again
-            console.log('Message already in state');
+            // Mark as read if from friend
+            if (newMsg.sender_id === selectedFriend.id) {
+              supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id);
+            }
           }
         }
       )
       .subscribe((status) => {
         console.log('📡 Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        }
       });
 
     channelRef.current = channel;
@@ -134,7 +156,7 @@ export default function ChatBox({ selectedFriend }) {
     if (!newMessage.trim() || !selectedFriend || !currentUser) return;
 
     const messageText = newMessage.trim();
-    setNewMessage(''); // Clear input immediately
+    setNewMessage(''); // Clear immediately
 
     setSending(true);
     try {
@@ -155,8 +177,14 @@ export default function ChatBox({ selectedFriend }) {
 
       console.log('✅ Message sent:', data);
 
-      // Add to local state immediately (optimistic update)
-      setMessages(prev => [...prev, data]);
+      // Optimistic update (message will also come via realtime)
+      setMessages(prev => {
+        // Check if already exists (from realtime)
+        if (prev.some(m => m.id === data.id)) {
+          return prev;
+        }
+        return [...prev, data];
+      });
 
       // Create notification
       await supabase
@@ -166,14 +194,15 @@ export default function ChatBox({ selectedFriend }) {
             user_id: selectedFriend.id,
             type: 'message',
             sender_id: currentUser.id,
-            message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`
+            message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
+            is_read: false
           }
         ]);
 
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       alert('Failed to send message');
-      setNewMessage(messageText); // Restore message on error
+      setNewMessage(messageText); // Restore on error
     } finally {
       setSending(false);
     }
@@ -197,6 +226,17 @@ export default function ChatBox({ selectedFriend }) {
     if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
+
+  if (!currentUser) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
+        <div className="text-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#F68537] mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!selectedFriend) {
     return (

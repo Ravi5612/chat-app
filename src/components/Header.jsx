@@ -11,7 +11,6 @@ export default function Header({ onSearch, onClearSearch }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   
-  // ✅ Real counts
   const [notificationCount, setNotificationCount] = useState(0);
   const [sentRequestsCount, setSentRequestsCount] = useState(0);
   const [receivedRequestsCount, setReceivedRequestsCount] = useState(0);
@@ -29,7 +28,7 @@ export default function Header({ onSearch, onClearSearch }) {
         setUser(session.user);
         setIsLoggedIn(true);
         loadUserProfile(session.user.id);
-        loadCounts(session.user.id); // ✅ Load counts
+        loadCounts(session.user.id);
       } else {
         setUser(null);
         setUserProfile(null);
@@ -41,11 +40,9 @@ export default function Header({ onSearch, onClearSearch }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Real-time count updates
   useEffect(() => {
     if (!user) return;
 
-    // Subscribe to notifications changes
     const notifChannel = supabase
       .channel('notifications-count')
       .on('postgres_changes',
@@ -54,7 +51,6 @@ export default function Header({ onSearch, onClearSearch }) {
       )
       .subscribe();
 
-    // Subscribe to friend_requests changes
     const requestsChannel = supabase
       .channel('requests-count')
       .on('postgres_changes',
@@ -67,14 +63,13 @@ export default function Header({ onSearch, onClearSearch }) {
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(requestsChannel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
       const delaySearch = setTimeout(() => {
         performSearch();
       }, 500);
-
       return () => clearTimeout(delaySearch);
     } else {
       if (onClearSearch) {
@@ -89,7 +84,7 @@ export default function Header({ onSearch, onClearSearch }) {
       setUser(user);
       setIsLoggedIn(true);
       loadUserProfile(user.id);
-      loadCounts(user.id); // ✅ Load counts
+      loadCounts(user.id);
     } else {
       setIsLoggedIn(false);
       setUserProfile(null);
@@ -116,38 +111,38 @@ export default function Header({ onSearch, onClearSearch }) {
     }
   };
 
-  // ✅ Load real counts
+  // ✅ FIXED: Load counts without head: true
   const loadCounts = async (userId) => {
     try {
-      // Unread notifications count
-      const { count: notifCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('is_read', false);
+      const [notifResult, sentResult, receivedResult] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('is_read', false),
+        
+        supabase
+          .from('friend_requests')
+          .select('id')
+          .eq('sender_id', userId)
+          .eq('status', 'pending'),
+        
+        supabase
+          .from('friend_requests')
+          .select('id')
+          .eq('receiver_id', userId)
+          .eq('status', 'pending')
+      ]);
 
-      setNotificationCount(notifCount || 0);
-
-      // Sent requests count (pending)
-      const { count: sentCount } = await supabase
-        .from('friend_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('sender_id', userId)
-        .eq('status', 'pending');
-
-      setSentRequestsCount(sentCount || 0);
-
-      // Received requests count (pending)
-      const { count: receivedCount } = await supabase
-        .from('friend_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', userId)
-        .eq('status', 'pending');
-
-      setReceivedRequestsCount(receivedCount || 0);
+      setNotificationCount(notifResult.data?.length || 0);
+      setSentRequestsCount(sentResult.data?.length || 0);
+      setReceivedRequestsCount(receivedResult.data?.length || 0);
 
     } catch (error) {
       console.error('Error loading counts:', error);
+      setNotificationCount(0);
+      setSentRequestsCount(0);
+      setReceivedRequestsCount(0);
     }
   };
 
@@ -157,51 +152,72 @@ export default function Header({ onSearch, onClearSearch }) {
     setReceivedRequestsCount(0);
   };
 
+  // ✅ FIXED: Search function
   const performSearch = async () => {
     if (!searchQuery.trim()) return;
-  
+
     setSearching(true);
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-  
-      const { data: profiles, error } = await supabase
+
+      console.log('🔍 Searching for:', searchQuery);
+
+      // Search profiles
+      const { data: profiles, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, username, email, phone, avatar_url')
         .or(`username.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
+        .neq('id', currentUser.id)
         .limit(20);
-  
-      if (error) throw error;
-  
-      const usersWithStatus = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { data: friendship } = await supabase
-            .from('friendships')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .eq('friend_id', profile.id)
-            .single();
-  
-          const { data: request } = await supabase
-            .from('friend_requests')
-            .select('*')
-            .eq('sender_id', currentUser.id)
-            .eq('receiver_id', profile.id)
-            .eq('status', 'pending')
-            .single();
-  
-          return {
-            ...profile,
-            isFriend: !!friendship,
-            requestSent: !!request
-          };
-        })
-      );
-  
+
+      if (profileError) {
+        console.error('Profile search error:', profileError);
+        throw profileError;
+      }
+
+      console.log('✅ Found profiles:', profiles?.length || 0);
+
+      if (!profiles || profiles.length === 0) {
+        if (onSearch) {
+          onSearch([], currentUser.id);
+        }
+        setSearching(false);
+        return;
+      }
+
+      // Get all friendships (one query)
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('friend_id')
+        .eq('user_id', currentUser.id);
+
+      const friendIds = new Set((friendships || []).map(f => f.friend_id));
+
+      // Get all pending requests (one query)
+      const { data: requests } = await supabase
+        .from('friend_requests')
+        .select('receiver_id')
+        .eq('sender_id', currentUser.id)
+        .eq('status', 'pending');
+
+      const requestIds = new Set((requests || []).map(r => r.receiver_id));
+
+      // Map status to profiles
+      const usersWithStatus = profiles.map(profile => ({
+        ...profile,
+        isFriend: friendIds.has(profile.id),
+        requestSent: requestIds.has(profile.id)
+      }));
+
+      console.log('✅ Users with status:', usersWithStatus);
+
       if (onSearch) {
         onSearch(usersWithStatus, currentUser.id);
       }
+
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error('❌ Error searching users:', error);
+      alert(`Search failed: ${error.message}`);
     } finally {
       setSearching(false);
     }
@@ -266,7 +282,6 @@ export default function Header({ onSearch, onClearSearch }) {
 
         <div className="flex-1"></div>
 
-        {/* LOGGED OUT - Desktop */}
         {!isLoggedIn && (
           <div className="hidden md:flex items-center space-x-3">
             <button className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium">
@@ -287,7 +302,6 @@ export default function Header({ onSearch, onClearSearch }) {
           </div>
         )}
 
-        {/* LOGGED IN - Desktop */}
         {isLoggedIn && (
           <div className="hidden md:flex items-center space-x-3">
             <button 
@@ -304,7 +318,6 @@ export default function Header({ onSearch, onClearSearch }) {
               👤 <span>Profile</span>
             </button>
 
-            {/* ✅ Notifications - Real Count */}
             <button 
               onClick={() => navigate('/notifications')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
@@ -317,7 +330,6 @@ export default function Header({ onSearch, onClearSearch }) {
               )}
             </button>
 
-            {/* ✅ Sent Requests - Real Count */}
             <button 
               onClick={() => navigate('/sent-requests')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
@@ -330,7 +342,6 @@ export default function Header({ onSearch, onClearSearch }) {
               )}
             </button>
 
-            {/* ✅ Received Requests - Real Count */}
             <button 
               onClick={() => navigate('/received-requests')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
@@ -343,7 +354,6 @@ export default function Header({ onSearch, onClearSearch }) {
               )}
             </button>
 
-            {/* Search Bar */}
             <form onSubmit={handleSearch} className="flex items-center bg-white rounded-full px-4 py-1.5 w-80">
               <input 
                 type="text" 
@@ -376,7 +386,7 @@ export default function Header({ onSearch, onClearSearch }) {
           </div>
         )}
 
-        {/* MOBILE */}
+        {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center gap-2">
           {!isLoggedIn ? (
             <button onClick={handleLogin} className="bg-white text-[#F68537] px-3 py-1 rounded-lg font-semibold text-sm shadow-md">Login</button>
@@ -396,7 +406,7 @@ export default function Header({ onSearch, onClearSearch }) {
         </div>
       </div>
 
-      {/* LOGGED IN - Mobile Menu */}
+      {/* Mobile Menu */}
       {isMobileMenuOpen && isLoggedIn && (
         <div className="md:hidden bg-[#EAD8A4] border-t border-[#F68537] py-3 px-4 space-y-2">
           <form onSubmit={handleSearch} className="flex items-center bg-white rounded-full px-3 py-2 mb-3">
@@ -439,7 +449,6 @@ export default function Header({ onSearch, onClearSearch }) {
             </span>
           </button>
 
-          {/* ✅ Mobile - Notifications */}
           <button 
             onClick={() => { navigate('/notifications'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -455,7 +464,6 @@ export default function Header({ onSearch, onClearSearch }) {
             )}
           </button>
 
-          {/* ✅ Mobile - Sent Requests */}
           <button 
             onClick={() => { navigate('/sent-requests'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -471,7 +479,6 @@ export default function Header({ onSearch, onClearSearch }) {
             )}
           </button>
 
-          {/* ✅ Mobile - Received Requests */}
           <button 
             onClick={() => { navigate('/received-requests'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -482,7 +489,7 @@ export default function Header({ onSearch, onClearSearch }) {
             </span>
             {receivedRequestsCount > 0 && (
               <span className="bg-green-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                {receivedRequestsCount > 9 ? '9+' : sentRequestsCount}
+                {receivedRequestsCount > 9 ? '9+' : receivedRequestsCount}
               </span>
             )}
           </button>
