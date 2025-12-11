@@ -1,5 +1,5 @@
 import { useOutletContext } from 'react-router-dom';
-import ChatBox from '../components/ChatBox';
+import ChatBox from '../components/chat/ChatBox';
 import SearchResults from '../components/SearchResults';
 
 export default function HomePage() {
