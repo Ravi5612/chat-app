@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase/client';
+import DraggableFloatingButton from './DraggableFloatingButton'; // ✅ Import
 
 export default function Sidebar({ onSelectFriend }) {
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,7 +12,6 @@ export default function Sidebar({ onSelectFriend }) {
   useEffect(() => {
     loadFriends();
     
-    // Real-time listener
     const channel = supabase
       .channel('friendships-updates')
       .on('postgres_changes', 
@@ -46,7 +48,6 @@ export default function Sidebar({ onSelectFriend }) {
 
       console.log('✅ Current user:', user.id);
 
-      // Get friendships with profiles joined
       const { data: friendships, error: friendshipError } = await supabase
         .from('friendships')
         .select(`
@@ -75,7 +76,6 @@ export default function Sidebar({ onSelectFriend }) {
         return;
       }
 
-      // Get unread message counts
       const friendsWithUnread = await Promise.all(
         friendships.map(async (friendship) => {
           const friendProfile = friendship.friend;
@@ -109,68 +109,59 @@ export default function Sidebar({ onSelectFriend }) {
   };
 
   const handleFriendClick = (friend) => {
+    console.log('👤 Friend clicked:', friend.name);
     setIsSidebarOpen(false);
+    
     if (onSelectFriend) {
       onSelectFriend(friend);
     }
+    
+    navigate('/home');
   };
 
   return (
     <>
-      {/* Mobile: Floating Toggle Button */}
-      {!isSidebarOpen && (
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="md:hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-[#F68537] text-white p-6 rounded-full shadow-2xl hover:bg-[#EAD8A4] hover:text-gray-800 transition-all"
-        >
-          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        </button>
-      )}
+      {/* ✅ Draggable Floating Button - Clean! */}
+      <DraggableFloatingButton 
+        onClick={() => setIsSidebarOpen(true)}
+        isVisible={!isSidebarOpen}
+      />
 
       {/* Mobile: Overlay */}
       {isSidebarOpen && (
-        <div onClick={() => setIsSidebarOpen(false)} className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"></div>
+        <div 
+          onClick={() => setIsSidebarOpen(false)} 
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+        />
       )}
 
       {/* Sidebar */}
       <aside className={`
-          fixed md:static inset-y-0 left-0 z-40
-          w-72 md:w-50 lg:w-80
-          bg-[#EAD8A4] border-r border-[#F68537] 
-          flex flex-col h-screen md:h-[calc(100vh-4rem)]
-          transform transition-transform duration-300 ease-in-out
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        `}>
+        fixed md:static inset-y-0 left-0 z-40
+        w-72 md:w-50 lg:w-80
+        bg-[#EAD8A4] border-r border-[#F68537] 
+        flex flex-col h-screen md:h-[calc(100vh-4rem)]
+        transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
         
-        {/* Header - Fixed */}
+        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#F68537] bg-[#EAD8A4] sticky top-0 z-10">
           <h2 className="font-bold text-base md:text-lg text-gray-800">
             Friends List {friends.length > 0 && `(${friends.length})`}
           </h2>
           <div className="flex items-center gap-2">
             <span className="text-2xl">❤️</span>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-800 hover:text-[#F68537] text-xl">
+            <button 
+              onClick={() => setIsSidebarOpen(false)} 
+              className="md:hidden text-gray-800 hover:text-[#F68537] text-xl"
+            >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Reload Button */}
-        <div className="p-2 border-b border-[#F68537]">
-          <button
-            onClick={() => {
-              console.log('🔄 Manual reload');
-              loadFriends();
-            }}
-            className="w-full bg-[#F68537] text-white px-3 py-2 rounded-lg hover:bg-[#EAD8A4] hover:text-gray-800 transition-colors text-sm font-medium"
-          >
-            🔄 Reload Friends
-          </button>
-        </div>
-
-        {/* Friends List - Scrollable */}
+        {/* Friends List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#F68537] scrollbar-track-[#EAD8A4]">
           {loading ? (
             <div className="flex items-center justify-center h-full">
@@ -185,7 +176,10 @@ export default function Sidebar({ onSelectFriend }) {
                 <div className="text-6xl mb-4">👥</div>
                 <h3 className="font-bold text-gray-800 mb-2">No friends yet</h3>
                 <p className="text-gray-600 text-sm mb-4">Accept friend requests to see them here!</p>
-                <button onClick={loadFriends} className="bg-[#F68537] text-white px-4 py-2 rounded-lg hover:bg-[#EAD8A4] hover:text-gray-800 transition-colors text-sm">
+                <button 
+                  onClick={loadFriends} 
+                  className="bg-[#F68537] text-white px-4 py-2 rounded-lg hover:bg-[#EAD8A4] hover:text-gray-800 transition-colors text-sm"
+                >
                   Refresh List
                 </button>
               </div>

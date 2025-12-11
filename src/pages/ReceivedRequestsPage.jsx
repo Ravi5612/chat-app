@@ -266,17 +266,7 @@ export default function ReceivedRequestsPage() {
           </div>
         </div>
 
-        {/* Debug Panel (Optional - can remove after testing) */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-blue-800 font-medium mb-2">
-            🔍 Debug Mode
-          </p>
-          <p className="text-xs text-blue-700">
-            • Open Console (F12) before clicking Accept<br/>
-            • Check detailed logs for errors<br/>
-            • Verify friendships table after accepting
-          </p>
-        </div>
+       
 
         {/* Received Requests List */}
         {receivedRequests.length === 0 ? (
