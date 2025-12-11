@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
-import MainLayout from '../components/MainLayout';
 
 export default function SentRequestsPage() {
   const [sentRequests, setSentRequests] = useState([]);
@@ -63,6 +62,7 @@ export default function SentRequestsPage() {
       setLoading(false);
     }
   };
+
   const cancelRequest = async (requestId) => {
     try {
       const { error } = await supabase
@@ -73,8 +73,25 @@ export default function SentRequestsPage() {
       if (error) throw error;
 
       setSentRequests(prev => prev.filter(r => r.id !== requestId));
+      alert('Request canceled');
     } catch (error) {
       console.error('Error canceling request:', error);
+      alert('Failed to cancel request');
+    }
+  };
+
+  const deleteRequest = async (requestId) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      setSentRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (error) {
+      console.error('Error deleting request:', error);
     }
   };
 
@@ -121,144 +138,144 @@ export default function SentRequestsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-[#F68537] mx-auto mb-4"></div>
-            <p className="text-gray-600 font-medium">Loading sent requests...</p>
-          </div>
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-[#F68537] mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading sent requests...</p>
         </div>
-      </MainLayout>
+      </div>
     );
   }
 
   const pendingCount = sentRequests.filter(r => r.status === 'pending').length;
   const acceptedCount = sentRequests.filter(r => r.status === 'accepted').length;
+  const rejectedCount = sentRequests.filter(r => r.status === 'rejected').length;
 
   return (
-    <MainLayout>
-      <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#FFF5E6] to-white">
-        <div className="max-w-4xl mx-auto p-4 md:p-6">
-          {/* Header Section */}
-          <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
-                  📤 Sent Requests
-                  {pendingCount > 0 && (
-                    <span className="bg-blue-500 text-white text-sm px-3 py-1 rounded-full">
-                      {pendingCount} pending
-                    </span>
-                  )}
-                </h1>
-                <p className="text-gray-600 mt-1">Friend requests you've sent</p>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3 md:gap-4">
-              <div className="bg-blue-50 rounded-lg p-3 text-center border-2 border-blue-200">
-                <div className="text-2xl md:text-3xl font-bold text-blue-600">{pendingCount}</div>
-                <div className="text-xs md:text-sm text-blue-800 mt-1">Pending</div>
-              </div>
-              <div className="bg-green-50 rounded-lg p-3 text-center border-2 border-green-200">
-                <div className="text-2xl md:text-3xl font-bold text-green-600">{acceptedCount}</div>
-                <div className="text-xs md:text-sm text-green-800 mt-1">Accepted</div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3 text-center border-2 border-gray-200">
-                <div className="text-2xl md:text-3xl font-bold text-gray-600">{sentRequests.length}</div>
-                <div className="text-xs md:text-sm text-gray-800 mt-1">Total</div>
-              </div>
+    <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#FFF5E6] to-white">
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
+        {/* Header Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
+                📤 Sent Requests
+                {pendingCount > 0 && (
+                  <span className="bg-blue-500 text-white text-sm px-3 py-1 rounded-full">
+                    {pendingCount} pending
+                  </span>
+                )}
+              </h1>
+              <p className="text-gray-600 mt-1">Friend requests you've sent</p>
             </div>
           </div>
 
-          {/* Sent Requests List */}
-          {sentRequests.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center">
-              <div className="text-6xl mb-4">📭</div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">No sent requests</h2>
-              <p className="text-gray-600">You haven't sent any friend requests yet</p>
+          {/* Stats */}
+          <div className="grid grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-blue-50 rounded-lg p-3 text-center border-2 border-blue-200">
+              <div className="text-2xl md:text-3xl font-bold text-blue-600">{pendingCount}</div>
+              <div className="text-xs md:text-sm text-blue-800 mt-1">Pending</div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {sentRequests.map((request) => (
-                <div
-                  key={request.id}
-                  className={`bg-white rounded-xl shadow-md border-2 p-4 md:p-5 transition-all hover:shadow-lg ${getStatusColor(request.status)}`}
-                >
-                  <div className="flex items-center gap-3 md:gap-4">
-                    {/* Avatar */}
-                    {/* Avatar */}
-<img
-  src={request.receiver?.avatar_url || `https://ui-avatars.com/api/?name=${request.receiver?.username || 'User'}&background=F68537&color=fff`}
-  alt={request.receiver?.username}
-  className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-[#F68537] flex-shrink-0"
-/>
+            <div className="bg-green-50 rounded-lg p-3 text-center border-2 border-green-200">
+              <div className="text-2xl md:text-3xl font-bold text-green-600">{acceptedCount}</div>
+              <div className="text-xs md:text-sm text-green-800 mt-1">Accepted</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-3 text-center border-2 border-red-200">
+              <div className="text-2xl md:text-3xl font-bold text-red-600">{rejectedCount}</div>
+              <div className="text-xs md:text-sm text-red-800 mt-1">Rejected</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-center border-2 border-gray-200">
+              <div className="text-2xl md:text-3xl font-bold text-gray-600">{sentRequests.length}</div>
+              <div className="text-xs md:text-sm text-gray-800 mt-1">Total</div>
+            </div>
+          </div>
+        </div>
 
-{/* Content */}
-<div className="flex-1 min-w-0">
-  <div className="flex items-start justify-between gap-2">
-    <div className="flex-1">
-      <h3 className="text-gray-800 font-bold text-base md:text-lg">
-        {request.receiver?.username || 'Unknown User'}
-      </h3>
-      <p className="text-gray-600 text-xs md:text-sm truncate">
-        {request.receiver?.email}
-      </p>
-      {request.receiver?.phone && (
-        <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
-          📞 {request.receiver?.phone}
-        </p>
-      )}
-      <div className="flex items-center gap-2 mt-1">
-        <span className="text-xl">{getStatusIcon(request.status)}</span>
-        <span className="text-xs md:text-sm font-medium capitalize">
-          {request.status}
-        </span>
-        <span className="text-gray-500 text-xs">•</span>
-        <span className="text-gray-500 text-xs md:text-sm">
-          {formatTime(request.created_at)}
-        </span>
-      </div>
-    </div>
-  </div>
+        {/* Sent Requests List */}
+        {sentRequests.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center">
+            <div className="text-6xl mb-4">📭</div>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">No sent requests</h2>
+            <p className="text-gray-600">You haven't sent any friend requests yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {sentRequests.map((request) => (
+              <div
+                key={request.id}
+                className={`bg-white rounded-xl shadow-md border-2 p-4 md:p-5 transition-all hover:shadow-lg ${getStatusColor(request.status)}`}
+              >
+                <div className="flex items-start gap-3 md:gap-4">
+                  {/* Avatar */}
+                  <img
+                    src={request.receiver?.avatar_url || `https://ui-avatars.com/api/?name=${request.receiver?.username || 'User'}&background=F68537&color=fff`}
+                    alt={request.receiver?.username}
+                    className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-[#F68537] flex-shrink-0 object-cover"
+                  />
 
-  {/* Action Buttons */}
-  <div className="flex gap-2 mt-3">
-    {request.status === 'pending' && (
-      <button
-        onClick={() => cancelRequest(request.id)}
-        className="text-xs md:text-sm bg-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors font-medium"
-      >
-        Cancel Request
-      </button>
-    )}
-    
-    {request.status === 'accepted' && (
-      <button
-        className="text-xs md:text-sm bg-green-100 text-green-600 px-3 py-1.5 rounded-lg font-medium cursor-default"
-      >
-        Now Friends ✓
-      </button>
-    )}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className="text-gray-800 font-bold text-base md:text-lg">
+                          {request.receiver?.username || 'Unknown User'}
+                        </h3>
+                        <p className="text-gray-600 text-xs md:text-sm truncate">
+                          {request.receiver?.email}
+                        </p>
+                        {request.receiver?.phone && (
+                          <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                            📞 {request.receiver?.phone}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xl">{getStatusIcon(request.status)}</span>
+                          <span className="text-xs md:text-sm font-medium capitalize">
+                            {request.status}
+                          </span>
+                          <span className="text-gray-500 text-xs">•</span>
+                          <span className="text-gray-500 text-xs md:text-sm">
+                            {formatTime(request.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-    {request.status === 'rejected' && (
-      <button
-        onClick={() => deleteRequest(request.id)}
-        className="text-xs md:text-sm bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-      >
-        Remove
-      </button>
-    )}
-  </div>
-</div>
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 mt-3">
+                      {request.status === 'pending' && (
+                        <button
+                          onClick={() => cancelRequest(request.id)}
+                          className="text-xs md:text-sm bg-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors font-medium"
+                        >
+                          ✕ Cancel Request
+                        </button>
+                      )}
+                      
+                      {request.status === 'accepted' && (
+                        <button
+                          className="text-xs md:text-sm bg-green-100 text-green-600 px-3 py-1.5 rounded-lg font-medium cursor-default"
+                        >
+                          Now Friends ✓
+                        </button>
+                      )}
+
+                      {request.status === 'rejected' && (
+                        <button
+                          onClick={() => deleteRequest(request.id)}
+                          className="text-xs md:text-sm bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          🗑️ Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
-    </MainLayout>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

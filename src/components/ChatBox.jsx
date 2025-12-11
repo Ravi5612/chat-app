@@ -8,6 +8,7 @@ export default function ChatBox({ selectedFriend }) {
   const [sending, setSending] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const messagesEndRef = useRef(null);
+  const channelRef = useRef(null);
 
   useEffect(() => {
     getCurrentUser();
@@ -18,6 +19,15 @@ export default function ChatBox({ selectedFriend }) {
       loadMessages();
       subscribeToMessages();
     }
+
+    // Cleanup previous channel
+    return () => {
+      if (channelRef.current) {
+        console.log('Unsubscribing from channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [selectedFriend, currentUser]);
 
   useEffect(() => {
@@ -60,9 +70,20 @@ export default function ChatBox({ selectedFriend }) {
   };
 
   const subscribeToMessages = () => {
+    if (!selectedFriend || !currentUser) return;
+
+    // Remove previous channel if exists
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    console.log('🔔 Subscribing to real-time messages...');
+
+    // Create new channel
     const channel = supabase
-      .channel(`messages-${selectedFriend.id}`)
-      .on('postgres_changes',
+      .channel(`chat-${selectedFriend.id}-${currentUser.id}`)
+      .on(
+        'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
@@ -70,10 +91,13 @@ export default function ChatBox({ selectedFriend }) {
           filter: `sender_id=eq.${selectedFriend.id}`
         },
         (payload) => {
+          console.log('✅ New message received:', payload.new);
+          
           if (payload.new.receiver_id === currentUser.id) {
-            setMessages(prev => [...prev, payload.new]);
+            // Add message to state
+            setMessages((current) => [...current, payload.new]);
             
-            // Mark as read
+            // Mark as read immediately
             supabase
               .from('messages')
               .update({ is_read: true })
@@ -81,16 +105,36 @@ export default function ChatBox({ selectedFriend }) {
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          console.log('✅ Your message sent:', payload.new);
+          
+          if (payload.new.receiver_id === selectedFriend.id) {
+            // Message already added when sending, no need to add again
+            console.log('Message already in state');
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+      });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    channelRef.current = channel;
   };
 
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedFriend || !currentUser) return;
+
+    const messageText = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
 
     setSending(true);
     try {
@@ -100,7 +144,7 @@ export default function ChatBox({ selectedFriend }) {
           {
             sender_id: currentUser.id,
             receiver_id: selectedFriend.id,
-            message: newMessage.trim(),
+            message: messageText,
             is_read: false
           }
         ])
@@ -109,10 +153,12 @@ export default function ChatBox({ selectedFriend }) {
 
       if (error) throw error;
 
-      setMessages(prev => [...prev, data]);
-      setNewMessage('');
+      console.log('✅ Message sent:', data);
 
-      // Create notification for receiver
+      // Add to local state immediately (optimistic update)
+      setMessages(prev => [...prev, data]);
+
+      // Create notification
       await supabase
         .from('notifications')
         .insert([
@@ -120,12 +166,14 @@ export default function ChatBox({ selectedFriend }) {
             user_id: selectedFriend.id,
             type: 'message',
             sender_id: currentUser.id,
-            message: `${currentUser.user_metadata?.name || currentUser.email} sent you a message`
+            message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`
           }
         ]);
 
     } catch (error) {
       console.error('Error sending message:', error);
+      alert('Failed to send message');
+      setNewMessage(messageText); // Restore message on error
     } finally {
       setSending(false);
     }
@@ -150,7 +198,6 @@ export default function ChatBox({ selectedFriend }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  // No friend selected state
   if (!selectedFriend) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
@@ -171,11 +218,14 @@ export default function ChatBox({ selectedFriend }) {
           <img
             src={selectedFriend.img}
             alt={selectedFriend.name}
-            className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#F68537]"
+            className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#F68537] object-cover"
           />
           <div className="flex-1">
             <h2 className="font-bold text-base md:text-lg text-gray-800">{selectedFriend.name}</h2>
             <p className="text-xs md:text-sm text-gray-600">{selectedFriend.email}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">● Online</span>
           </div>
         </div>
       </div>
@@ -204,7 +254,7 @@ export default function ChatBox({ selectedFriend }) {
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isSent ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${isSent ? 'justify-end' : 'justify-start'} animate-fadeIn`}
                 >
                   <div
                     className={`max-w-[70%] md:max-w-[60%] rounded-2xl px-4 py-2 ${

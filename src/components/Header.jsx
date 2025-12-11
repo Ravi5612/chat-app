@@ -7,9 +7,14 @@ export default function Header({ onSearch, onClearSearch }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null); // ✅ Profile data
+  const [userProfile, setUserProfile] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  
+  // ✅ Real counts
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [sentRequestsCount, setSentRequestsCount] = useState(0);
+  const [receivedRequestsCount, setReceivedRequestsCount] = useState(0);
   
   const company = {
     name: "Baat-Kro",
@@ -23,18 +28,47 @@ export default function Header({ onSearch, onClearSearch }) {
       if (session?.user) {
         setUser(session.user);
         setIsLoggedIn(true);
-        loadUserProfile(session.user.id); // ✅ Load profile when logged in
+        loadUserProfile(session.user.id);
+        loadCounts(session.user.id); // ✅ Load counts
       } else {
         setUser(null);
         setUserProfile(null);
         setIsLoggedIn(false);
+        resetCounts();
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ AUTO-SEARCH: Typing ke saath search
+  // ✅ Real-time count updates
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to notifications changes
+    const notifChannel = supabase
+      .channel('notifications-count')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => loadCounts(user.id)
+      )
+      .subscribe();
+
+    // Subscribe to friend_requests changes
+    const requestsChannel = supabase
+      .channel('requests-count')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_requests' },
+        () => loadCounts(user.id)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(requestsChannel);
+    };
+  }, [user]);
+
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
       const delaySearch = setTimeout(() => {
@@ -54,14 +88,15 @@ export default function Header({ onSearch, onClearSearch }) {
     if (user) {
       setUser(user);
       setIsLoggedIn(true);
-      loadUserProfile(user.id); // ✅ Load profile
+      loadUserProfile(user.id);
+      loadCounts(user.id); // ✅ Load counts
     } else {
       setIsLoggedIn(false);
       setUserProfile(null);
+      resetCounts();
     }
   };
 
-  // ✅ Load user profile from database
   const loadUserProfile = async (userId) => {
     try {
       const { data, error } = await supabase
@@ -79,6 +114,47 @@ export default function Header({ onSearch, onClearSearch }) {
     } catch (error) {
       console.error('Error loading user profile:', error);
     }
+  };
+
+  // ✅ Load real counts
+  const loadCounts = async (userId) => {
+    try {
+      // Unread notifications count
+      const { count: notifCount } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+      setNotificationCount(notifCount || 0);
+
+      // Sent requests count (pending)
+      const { count: sentCount } = await supabase
+        .from('friend_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('sender_id', userId)
+        .eq('status', 'pending');
+
+      setSentRequestsCount(sentCount || 0);
+
+      // Received requests count (pending)
+      const { count: receivedCount } = await supabase
+        .from('friend_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .eq('status', 'pending');
+
+      setReceivedRequestsCount(receivedCount || 0);
+
+    } catch (error) {
+      console.error('Error loading counts:', error);
+    }
+  };
+
+  const resetCounts = () => {
+    setNotificationCount(0);
+    setSentRequestsCount(0);
+    setReceivedRequestsCount(0);
   };
 
   const performSearch = async () => {
@@ -148,6 +224,7 @@ export default function Header({ onSearch, onClearSearch }) {
     setIsLoggedIn(false);
     setUser(null);
     setUserProfile(null);
+    resetCounts();
     navigate('/login');
   };
 
@@ -159,7 +236,6 @@ export default function Header({ onSearch, onClearSearch }) {
     navigate('/signup');
   };
 
-  // ✅ Get display avatar
   const getAvatarUrl = () => {
     if (userProfile?.avatar_url) {
       return userProfile.avatar_url;
@@ -168,7 +244,6 @@ export default function Header({ onSearch, onClearSearch }) {
     return `https://ui-avatars.com/api/?name=${displayName}&background=F68537&color=fff&size=200`;
   };
 
-  // ✅ Get display name
   const getDisplayName = () => {
     return userProfile?.username || user?.user_metadata?.name || user?.email?.split('@')[0] || "User";
   };
@@ -176,7 +251,6 @@ export default function Header({ onSearch, onClearSearch }) {
   return (
     <header className="bg-[#F68537] text-white shadow-lg">
       <div className="h-16 flex items-center px-4 md:px-6">
-        {/* ✅ Logo/Avatar Section */}
         <div className="flex items-center space-x-2 md:space-x-3">
           <img
             src={isLoggedIn ? getAvatarUrl() : company.logo}
@@ -230,34 +304,43 @@ export default function Header({ onSearch, onClearSearch }) {
               👤 <span>Profile</span>
             </button>
 
+            {/* ✅ Notifications - Real Count */}
             <button 
               onClick={() => navigate('/notifications')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
             >
               🔔 <span>Notification</span>
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                5
-              </span>
+              {notificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
             </button>
 
+            {/* ✅ Sent Requests - Real Count */}
             <button 
               onClick={() => navigate('/sent-requests')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
             >
               📤 <span>Sent</span>
-              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                3
-              </span>
+              {sentRequestsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {sentRequestsCount > 9 ? '9+' : sentRequestsCount}
+                </span>
+              )}
             </button>
 
+            {/* ✅ Received Requests - Real Count */}
             <button 
               onClick={() => navigate('/received-requests')}
               className="flex items-center gap-2 bg-[#F68537] hover:bg-[#EAD8A4] hover:text-gray-800 px-3 py-1.5 rounded-lg transition-colors font-medium relative"
             >
               📥 <span>Received</span>
-              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                7
-              </span>
+              {receivedRequestsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {receivedRequestsCount > 9 ? '9+' : receivedRequestsCount}
+                </span>
+              )}
             </button>
 
             {/* Search Bar */}
@@ -316,7 +399,6 @@ export default function Header({ onSearch, onClearSearch }) {
       {/* LOGGED IN - Mobile Menu */}
       {isMobileMenuOpen && isLoggedIn && (
         <div className="md:hidden bg-[#EAD8A4] border-t border-[#F68537] py-3 px-4 space-y-2">
-          {/* Search Bar Mobile */}
           <form onSubmit={handleSearch} className="flex items-center bg-white rounded-full px-3 py-2 mb-3">
             <input 
               type="text" 
@@ -357,6 +439,7 @@ export default function Header({ onSearch, onClearSearch }) {
             </span>
           </button>
 
+          {/* ✅ Mobile - Notifications */}
           <button 
             onClick={() => { navigate('/notifications'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -365,9 +448,14 @@ export default function Header({ onSearch, onClearSearch }) {
               <span className="text-xl">🔔</span>
               <span className="font-medium">Notifications</span>
             </span>
-            <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">5</span>
+            {notificationCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {notificationCount > 9 ? '9+' : notificationCount}
+              </span>
+            )}
           </button>
 
+          {/* ✅ Mobile - Sent Requests */}
           <button 
             onClick={() => { navigate('/sent-requests'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -376,9 +464,14 @@ export default function Header({ onSearch, onClearSearch }) {
               <span className="text-xl">📤</span>
               <span className="font-medium">Sent Requests</span>
             </span>
-            <span className="bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">3</span>
+            {sentRequestsCount > 0 && (
+              <span className="bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {sentRequestsCount > 9 ? '9+' : sentRequestsCount}
+              </span>
+            )}
           </button>
 
+          {/* ✅ Mobile - Received Requests */}
           <button 
             onClick={() => { navigate('/received-requests'); setIsMobileMenuOpen(false); }}
             className="w-full flex items-center justify-between bg-white text-gray-800 px-4 py-2.5 rounded-lg hover:bg-[#F68537] hover:text-white transition-colors"
@@ -387,7 +480,11 @@ export default function Header({ onSearch, onClearSearch }) {
               <span className="text-xl">📥</span>
               <span className="font-medium">Received Requests</span>
             </span>
-            <span className="bg-green-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">7</span>
+            {receivedRequestsCount > 0 && (
+              <span className="bg-green-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {receivedRequestsCount > 9 ? '9+' : sentRequestsCount}
+              </span>
+            )}
           </button>
         </div>
       )}
