@@ -49,6 +49,7 @@ export default function MessageList({ messages, loading, currentUserId, onLoadMo
             key={msg.id} 
             message={msg} 
             isCurrentUser={msg.sender_id === currentUserId}
+            currentUserId={currentUserId} 
             onMessageVisible={onMessageVisible}
           />
         ))}
