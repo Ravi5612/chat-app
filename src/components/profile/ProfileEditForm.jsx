@@ -21,12 +21,18 @@ export default function ProfileEditForm({
       <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 mb-6">
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="relative">
-            <img
-              src={formData.avatar_url || `https://ui-avatars.com/api/?name=${formData.username || 'User'}&background=F68537&color=fff&size=200`}
-              alt="Profile"
-              className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-[#F68537] shadow-lg object-cover"
-            />
-            
+      <img
+  src={
+    formData.avatar_url
+      ? `${formData.avatar_url}?v=${Date.now()}`
+      : `https://ui-avatars.com/api/?name=${formData.username || 'User'}&background=F68537&color=fff&size=200`
+  }
+  alt="Profile"
+  onError={(e) => {
+    e.currentTarget.src = `https://ui-avatars.com/api/?name=${formData.username || 'User'}`;
+  }}
+  className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-[#F68537] shadow-lg object-cover"
+/>
             {/* ✅ Using Button component for camera button */}
             <Button
               type="button"
@@ -39,13 +45,13 @@ export default function ProfileEditForm({
               {uploadingImage ? '⏳' : '📷'}
             </Button>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/jpg,image/webp,image/gif"
-              onChange={onImageUpload}
-              className="hidden"
-            />
+           <input
+  ref={fileInputRef}
+  type="file"
+  accept="image/jpeg,image/png,image/jpg"
+  onChange={onImageUpload}
+  className="hidden"
+/>
           </div>
 
           <div className="flex-1 text-center md:text-left">

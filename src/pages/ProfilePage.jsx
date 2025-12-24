@@ -69,7 +69,10 @@ export default function ProfilePage() {
       alert('Please upload an image file');
       return;
     }
-
+if (file.type === 'image/webp') {
+  alert('Please upload JPG or PNG image');
+  return;
+}
     setUploadingImage(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
