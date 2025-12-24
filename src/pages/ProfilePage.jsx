@@ -81,7 +81,8 @@ export default function ProfilePage() {
         .from('avatars')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: true
+          upsert: true,
+          contentType: file.type
         });
 
       if (uploadError) throw uploadError;
