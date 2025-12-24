@@ -1,16 +1,89 @@
-# React + Vite
+🌐 Chat Web Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Ye ek Modern Chat Web Application hai jo React.js, Supabase aur Tailwind CSS ka use karke banayi gayi hai. Application fully responsive, optimized aur scalable hai, jisme real-world chat web app ke saare important features implement kiye gaye hain.
 
-Currently, two official plugins are available:
+🚀 Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+React.js – Frontend development ke liye
 
-## React Compiler
+Supabase – Backend, Authentication, Realtime Database
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Tailwind CSS – Styling aur Responsive UI ke liye
 
-## Expanding the ESLint configuration
+✨ Features
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+🔐 User Authentication (Login / Logout)
+
+🤝 Friend Functionality
+
+Send friend request
+
+Receive friend request
+
+Accept / Reject request
+
+💬 Real-time Chat
+
+Send & receive messages
+
+Emojis support
+
+Message reactions
+
+🔔 Notifications
+
+Friend request notifications
+
+New message notifications
+
+🎨 Clean & Modern UI
+
+📱 Fully Responsive (Mobile, Tablet, Desktop)
+
+⚛️ React & Performance Features
+
+Functional Components
+
+Reusable Components
+
+Context API (Global State Management)
+
+Custom Hooks
+
+React Hooks (useState, useEffect, useContext, useMemo)
+
+Lazy Loading & Code Splitting
+
+Memoization (React.memo, useMemo)
+
+Optimized and clean code structure
+
+Better performance and scalability
+
+🏠 Home Page
+
+Reusable components based layout
+
+Lazy loaded components
+
+Fully responsive design
+
+🛠️ Project Setup
+
+Repository clone karein
+
+git clone <your-repository-url>
+
+
+Dependencies install karein
+
+npm install
+
+
+Project run karein
+
+npm start
+
+📌 Note
+
+Ye project learning aur practice purpose ke liye banaya gaya hai aur modern React Web Application architecture ko follow karta hai.
