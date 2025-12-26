@@ -1,34 +1,45 @@
-export default function FriendListItem({ friend, onClick }) {
-    return (
-      <li
-        className="flex items-center space-x-2 md:space-x-3 p-2 md:p-3 hover:bg-[#F68537] hover:text-white rounded-lg transition-all cursor-pointer group"
-        onClick={() => onClick(friend)}
-      >
-        <div className="relative flex-shrink-0">
-          <img
-            src={friend.img}
-            alt={friend.name}
-            className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#F68537] object-cover"
-          />
-          {friend.unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
-            </span>
-          )}
-        </div>
-  
-        <div className="flex-1 overflow-hidden min-w-0">
-          <p className="font-semibold text-xs md:text-sm truncate">{friend.name}</p>
-          <p className="text-xs text-gray-600 group-hover:text-gray-200 truncate">{friend.email}</p>
-        </div>
-  
-        {friend.unreadCount > 0 && (
-          <div className="flex-shrink-0">
-            <span className="bg-[#F68537] group-hover:bg-white group-hover:text-[#F68537] text-white text-xs font-bold px-2 py-1 rounded-full">
-              {friend.unreadCount}
-            </span>
-          </div>
+// 1. isOnline prop ko destructure karein
+export default function FriendListItem({ friend, onClick, isOnline }) {
+  return (
+    <li
+      className="flex items-center space-x-2 md:space-x-3 p-2 md:p-3 hover:bg-[#F68537] hover:text-white rounded-lg transition-all cursor-pointer group"
+      onClick={() => onClick(friend)}
+    >
+      <div className="relative flex-shrink-0">
+        <img
+          src={friend.img}
+          alt={friend.name}
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#F68537] object-cover"
+        />
+
+        {/* --- REAL-TIME ONLINE DOT --- */}
+        {isOnline && (
+          <span className="absolute bottom-0 right-0 w-3 h-3 md:w-3.5 md:h-3.5 bg-green-500 border-2 border-[#EAD8A4] rounded-full shadow-sm z-10"></span>
         )}
-      </li>
-    );
-  }
+        {/* ---------------------------- */}
+
+        {friend.unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-2">
+           <p className="font-semibold text-xs md:text-sm truncate">{friend.name}</p>
+           {/* Optionally yahan "online" text bhi dikha sakte ho mobile ke liye */}
+        </div>
+        <p className="text-xs text-gray-600 group-hover:text-gray-200 truncate">{friend.email}</p>
+      </div>
+
+      {friend.unreadCount > 0 && (
+        <div className="flex-shrink-0">
+          <span className="bg-[#F68537] group-hover:bg-white group-hover:text-[#F68537] text-white text-xs font-bold px-2 py-1 rounded-full">
+            {friend.unreadCount}
+          </span>
+        </div>
+      )}
+    </li>
+  );
+}
