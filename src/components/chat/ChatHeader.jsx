@@ -1,5 +1,6 @@
 import { useState } from 'react';
-
+import Calling from "./Vcall";
+import VCall from "./calling";
 export default function ChatHeader({ friend }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -33,6 +34,9 @@ export default function ChatHeader({ friend }) {
     setShowMenu(false);
   };
 
+    const comingSoon = () => {
+    alert("Feature coming soon 🚧");
+  };
   return (
     <div className="flex-shrink-0 bg-white border border-[#F68537] p-4 shadow-md relative">
       <div className="flex items-center gap-3">
@@ -59,7 +63,10 @@ export default function ChatHeader({ friend }) {
             {friend.email}
           </p>
         </div>
-
+ <div className="flex items-center gap-3">
+      <Calling onClick={comingSoon} />
+      <VCall onClick={comingSoon} />
+    </div>
         {/* 3-Dot Menu */}
         <div className="relative">
           <button
