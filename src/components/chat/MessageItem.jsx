@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import MessageStatus from './MessageStatus';
 import { supabase } from '../../supabase/client'; // Adjust path as needed
 
-export default function MessageItem({ message, isCurrentUser, onMessageVisible, currentUserId }) {
+export default function MessageItem({ message, isCurrentUser, onMessageVisible, currentUserId,onEditMessage  }) {
   const isSent = isCurrentUser;
   const isImage = message.file_type?.startsWith('image/');
   const isVideo = message.file_type?.startsWith('video/');
@@ -15,6 +15,8 @@ export default function MessageItem({ message, isCurrentUser, onMessageVisible, 
   const [showReactions, setShowReactions] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
   const [userReactions, setUserReactions] = useState([]);
+const [editingMessageId, setEditingMessageId] = useState(null); // kaunsa message edit ho raha hai
+const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
 
   // Available reactions with labels
   const availableReactions = [
@@ -123,8 +125,26 @@ export default function MessageItem({ message, isCurrentUser, onMessageVisible, 
     };
   };
 
+const handleSaveEdit = async (messageId) => {
+    if (!newMessageText.trim() || newMessageText === message.message) {
+      setEditingMessageId(null);
+      return;
+    }
+
+    try {
+      // 🚀 Parent ka function call karo (Lifting state up)
+      await onEditMessage(messageId, newMessageText);
+      
+      // Local state reset kar do
+      setEditingMessageId(null);
+      setNewMessageText('');
+      console.log("✅ Edit successful");
+    } catch (error) {
+      console.error("❌ Edit failed:", error);
+    }
+  };
   // Handle reaction click - FIXED VERSION
-  const handleReaction = async (emoji) => {
+ const handleReaction = async (emoji) => {
     if (!currentUserId) return;
     
     setIsReacting(true);
@@ -313,11 +333,55 @@ export default function MessageItem({ message, isCurrentUser, onMessageVisible, 
         )}
 
         {/* Message Text */}
-        {message.message && (
-          <p className="text-sm md:text-base break-words whitespace-pre-wrap">
-            {message.message}
-          </p>
-        )}
+       {editingMessageId === message.id ? (
+  // ✏️ EDIT MODE
+  <div className="flex flex-col gap-2">
+    <textarea
+      value={newMessageText}
+      onChange={(e) => setNewMessageText(e.target.value)}
+      rows={2}
+      autoFocus
+      className="w-full text-sm text-gray-800 rounded-lg p-2 border border-gray-300
+                 focus:outline-none focus:border-[#F68537]"
+    />
+
+    <div className="flex justify-end gap-2">
+      {/* CANCEL */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditingMessageId(null);
+          setNewMessageText('');
+        }}
+        className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'}"
+      >
+        Cancel
+      </button>
+
+      {/* SAVE */}
+      <button
+        onClick={(e) => {
+           e.stopPropagation();
+          handleSaveEdit(message.id);
+        }}
+        className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'"
+      >
+        Save
+      </button>
+    </div>
+  </div>
+) : (
+  // 💬 NORMAL MODE
+  message.message && (
+    <p className="text-sm md:text-base break-words whitespace-pre-wrap">
+      {message.message}
+      {message.edited && (
+        <span className="text-[10px] ml-1 opacity-70">(edited)</span>
+      )}
+    </p>
+  )
+)}
+
 
         {/* Display Reactions */}
         {reactions.length > 0 && (
@@ -358,7 +422,22 @@ export default function MessageItem({ message, isCurrentUser, onMessageVisible, 
           <span>{formatTime(message.created_at)}</span>
           {isSent && <MessageStatus status={message.status || 'sent'} />}
         </div>
-
+{isSent && editingMessageId !== message.id && (
+  <button
+    className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+      isSent ? '-left-16' : '-right-16'
+    } p-1.5 bg-white border border-gray-200 rounded-full shadow-sm
+      text-blue-600 hover:border-blue-600 hover:scale-110`}
+    onClick={(e) => {
+      e.stopPropagation();
+      setEditingMessageId(message.id);
+      setNewMessageText(message.message || '');
+    }}
+    title="Edit message"
+  >
+    ✏️
+  </button>
+)}
         {/* Reaction Button */}
         <button
           ref={reactionButtonRef}
@@ -371,6 +450,9 @@ export default function MessageItem({ message, isCurrentUser, onMessageVisible, 
         >
           <span className="text-sm">👍</span>
         </button>
+
+
+
       </div>
 
       {/* Reactions Popup */}

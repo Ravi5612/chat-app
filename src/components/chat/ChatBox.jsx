@@ -13,7 +13,7 @@ export default function ChatBox({ selectedFriend }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const channelRef = useRef(null);
   const isSubscribedRef = useRef(false);
-
+const [editingMessage, setEditingMessage] = useState(null);
   // Get current user
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -103,101 +103,36 @@ export default function ChatBox({ selectedFriend }) {
     }
   };
 
-  const subscribeToMessages = () => {
+ const subscribeToMessages = () => {
     if (!selectedFriend || !currentUser) return;
     
-    if (isSubscribedRef.current && channelRef.current) {
-      console.log('⏭️ Already subscribed, skipping...');
-      return;
-    }
-  
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-  
-    console.log('🔔 Subscribing to real-time messages for:', selectedFriend.name);
-  
     const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
   
     const channel = supabase
       .channel(channelName)
-      // Listen for new messages (INSERT)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages'
-        },
+        { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          console.log('📨 New message received:', payload.new);
-          
           const newMsg = payload.new;
-          
-          if (
-            (newMsg.sender_id === selectedFriend.id && newMsg.receiver_id === currentUser.id) ||
-            (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedFriend.id)
-          ) {
-            setMessages((current) => {
-              if (current.some(m => m.id === newMsg.id)) {
-                return current;
-              }
-              return [...current, newMsg];
-            });
-            
-            // ✅ FIXED: Only mark as 'delivered', NOT read
-            if (newMsg.sender_id === selectedFriend.id && newMsg.status === 'sent') {
-              setTimeout(async () => {
-                await supabase
-                  .from('messages')
-                  .update({ status: 'delivered' })
-                  .eq('id', newMsg.id)
-                  .eq('status', 'sent');
-                
-                console.log(`✅ Marked message ${newMsg.id} as delivered`);
-              }, 100);
-            }
-          }
+          setMessages((current) => {
+             if (current.some(m => m.id === newMsg.id)) return current;
+             return [...current, newMsg];
+          });
         }
       )
-      // Listen for status updates (UPDATE) - Real-time tick changes
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages'
-        },
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
-          console.log('🔄 Message status updated:', payload.new);
-          
+          // 🔥 YEH IMPORTANT HAI: Jab edit ho, toh list ko update karo
           const updatedMsg = payload.new;
-          
-          // Check if this message belongs to current conversation
-          if (
-            (updatedMsg.sender_id === currentUser.id && updatedMsg.receiver_id === selectedFriend.id) ||
-            (updatedMsg.sender_id === selectedFriend.id && updatedMsg.receiver_id === currentUser.id)
-          ) {
-            // Update message status in real-time
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === updatedMsg.id
-                  ? { ...msg, status: updatedMsg.status, is_read: updatedMsg.is_read }
-                  : msg
-              )
-            );
-            
-            console.log(`✅ Updated message ${updatedMsg.id} to status: ${updatedMsg.status}`);
-          }
+          setMessages((current) =>
+            current.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
+          );
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true;
-        }
-      });
+      .subscribe();
   
     channelRef.current = channel;
   };
@@ -334,6 +269,34 @@ export default function ChatBox({ selectedFriend }) {
     }
   };
 
+const handleEditMessage = async (messageId, newText) => {
+  try {
+    console.log("✏️ Updating ID:", messageId);
+    console.log("👤 Current User ID:", currentUser.id);
+console.log("ID Type:", typeof messageId, "Value:", messageId);
+console.log("SenderID Type:", typeof currentUser.id, "Value:", currentUser.id);
+    const { data, error, count } = await supabase
+      .from('messages')
+      .update({ 
+        message: newText, 
+        edited: true 
+      })
+      .eq('id', messageId)
+      .eq('sender_id', currentUser.id) // Check karo ye ID sahi hai?
+      .select(); // data wapas mangwao confirm karne ke liye
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      console.error("⚠️ Row match nahi hui! Matlab sender_id ya messageId galat hai.");
+    } else {
+      console.log("✅ DB Update Result:", data);
+    }
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+  }
+};
+
   const handleFileSelect = (file) => {
     console.log('📁 File selected:', file);
     setSelectedFile(file);
@@ -358,12 +321,13 @@ export default function ChatBox({ selectedFriend }) {
       <ChatHeader friend={selectedFriend} />
 
       {/* Messages List */}
-      <MessageList 
-        messages={messages}
-        loading={loading}
-        currentUserId={currentUser?.id}
-        onMessageVisible={handleMessageVisible}
-      />
+     <MessageList 
+  messages={messages}
+  loading={loading}
+  currentUserId={currentUser?.id}
+  onMessageVisible={handleMessageVisible}
+  onEditMessage={handleEditMessage} // 👈 console.log hata kar ye function pass karo
+/>
 
       {/* Chat Input */}
       <ChatInput 
