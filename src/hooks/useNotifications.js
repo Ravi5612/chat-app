@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
 
+const VALID_NOTIFICATION_TYPES = [
+  'friend_request',
+  'friend_accepted',
+  'friend_cancelled',
+  'system'
+];
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,13 +17,17 @@ export const useNotifications = () => {
 
     const channel = supabase
       .channel('notifications')
-      .on('postgres_changes',
+      .on(
+        'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications'
         },
         (payload) => {
+          // ✅ MESSAGE type yahin block ho jaayega
+          if (!VALID_NOTIFICATION_TYPES.includes(payload.new.type)) return;
+
           setNotifications(prev => [payload.new, ...prev]);
         }
       )
@@ -35,6 +46,7 @@ export const useNotifications = () => {
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
+        .in('type', VALID_NOTIFICATION_TYPES) // ✅ DB level filter
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -56,7 +68,9 @@ export const useNotifications = () => {
       if (error) throw error;
 
       setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
+        prev.map(n =>
+          n.id === notificationId ? { ...n, is_read: true } : n
+        )
       );
     } catch (error) {
       console.error('Error marking as read:', error);
@@ -92,7 +106,9 @@ export const useNotifications = () => {
 
       if (error) throw error;
 
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      setNotifications(prev =>
+        prev.filter(n => n.id !== notificationId)
+      );
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -103,9 +119,11 @@ export const useNotifications = () => {
       case 'unread':
         return notifications.filter(n => !n.is_read);
       case 'friend_request':
-        return notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted');
-      case 'message':
-        return notifications.filter(n => n.type === 'message');
+        return notifications.filter(
+          n =>
+            n.type === 'friend_request' ||
+            n.type === 'friend_accepted'
+        );
       default:
         return notifications;
     }
@@ -114,8 +132,11 @@ export const useNotifications = () => {
   const getCounts = () => ({
     total: notifications.length,
     unread: notifications.filter(n => !n.is_read).length,
-    friendRequest: notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted').length,
-    message: notifications.filter(n => n.type === 'message').length
+    friendRequest: notifications.filter(
+      n =>
+        n.type === 'friend_request' ||
+        n.type === 'friend_accepted'
+    ).length
   });
 
   return {
