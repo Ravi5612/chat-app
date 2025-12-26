@@ -47,7 +47,7 @@ export default function MainLayout({ children }) {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar ko onlineUsers pass kar rahe hain */}
-        <Sidebar onlineUsers={onlineUsers} /> 
+       <Sidebar onlineUsers={onlineUsers || {}} /> 
         
         {/* Children (Chat Page) ko bhi access milega agar zaroorat ho */}
         <div className="flex-1">

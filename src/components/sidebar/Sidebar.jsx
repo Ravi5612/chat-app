@@ -7,7 +7,7 @@ import FriendListEmpty from './FriendListEmpty';
 import FriendListLoading from './FriendListLoading';
 import { useFriends } from '../../hooks/useFriends';
 
-export default function Sidebar({ onSelectFriend,onlineUsers }) {
+export default function Sidebar({ onSelectFriend,onlineUsers = {} }) {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { friends, loading, loadFriends } = useFriends();
@@ -68,7 +68,7 @@ export default function Sidebar({ onSelectFriend,onlineUsers }) {
                   key={friend.id}
                   friend={friend}
                   onClick={handleFriendClick}
-                     isOnline={!!onlineUsers[friend.id]}
+                  isOnline={!!onlineUsers?.[friend.id]}
                 />
               ))}
             </ul>
