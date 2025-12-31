@@ -4,7 +4,8 @@ import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import EmptyState from './EmptyState';
-
+import { encryptText, getChatKey } from "../utils/chatCrypto";
+import { decryptText, getChatKey } from "../utils/chatCrypto";
 export default function ChatBox({ selectedFriend }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -72,70 +73,157 @@ const [editingMessage, setEditingMessage] = useState(null);
     markAsDelivered();
   }, [selectedFriend, currentUser]);
 
-  const loadMessages = async () => {
-    if (!selectedFriend || !currentUser) return;
+  // const loadMessages = async () => {
+  //   if (!selectedFriend || !currentUser) return;
 
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUser.id})`)
-        .order('created_at', { ascending: true });
+  //   setLoading(true);
+  //   try {
+  //     const { data, error } = await supabase
+  //       .from('messages')
+  //       .select('*')
+  //       .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUser.id})`)
+  //       .order('created_at', { ascending: true });
 
-      if (error) throw error;
+  //     if (error) throw error;
 
-      console.log('✅ Loaded messages:', data?.length || 0);
-      setMessages(data || []);
+  //     console.log('✅ Loaded messages:', data?.length || 0);
+  //     setMessages(data || []);
 
-      // Mark messages as read
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('sender_id', selectedFriend.id)
-        .eq('receiver_id', currentUser.id)
-        .eq('is_read', false);
+  //     // Mark messages as read
+  //     await supabase
+  //       .from('messages')
+  //       .update({ is_read: true })
+  //       .eq('sender_id', selectedFriend.id)
+  //       .eq('receiver_id', currentUser.id)
+  //       .eq('is_read', false);
 
-    } catch (error) {
-      console.error('❌ Error loading messages:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  //   } catch (error) {
+  //     console.error('❌ Error loading messages:', error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
- const subscribeToMessages = () => {
-    if (!selectedFriend || !currentUser) return;
+
+const loadMessages = async () => {
+  if (!selectedFriend || !currentUser) return;
+
+  setLoading(true);
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUser.id})`)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    // 🔐 Ab yahan decrypt karenge messages ko
+    const chatKey = getChatKey(currentUser.id, selectedFriend.id);
+
+    const decryptedMessages = data.map(msg => ({
+      ...msg,
+      message: decryptText(msg.message, chatKey)
+    }));
+
+    console.log('✅ Loaded & decrypted messages:', decryptedMessages.length);
+
+    setMessages(decryptedMessages || []);
+
+    // Mark messages as read
+    await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .eq('sender_id', selectedFriend.id)
+      .eq('receiver_id', currentUser.id)
+      .eq('is_read', false);
+
+  } catch (error) {
+    console.error('❌ Error loading messages:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+//  const subscribeToMessages = () => {
+//     if (!selectedFriend || !currentUser) return;
     
-    const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
+//     const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
   
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          const newMsg = payload.new;
-          setMessages((current) => {
-             if (current.some(m => m.id === newMsg.id)) return current;
-             return [...current, newMsg];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => {
-          // 🔥 YEH IMPORTANT HAI: Jab edit ho, toh list ko update karo
-          const updatedMsg = payload.new;
-          setMessages((current) =>
-            current.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
-          );
-        }
-      )
-      .subscribe();
+//     const channel = supabase
+//       .channel(channelName)
+//       .on(
+//         'postgres_changes',
+//         { event: 'INSERT', schema: 'public', table: 'messages' },
+//         (payload) => {
+//           const newMsg = payload.new;
+//           setMessages((current) => {
+//              if (current.some(m => m.id === newMsg.id)) return current;
+//              return [...current, newMsg];
+//           });
+//         }
+//       )
+//       .on(
+//         'postgres_changes',
+//         { event: 'UPDATE', schema: 'public', table: 'messages' },
+//         (payload) => {
+//           // 🔥 YEH IMPORTANT HAI: Jab edit ho, toh list ko update karo
+//           const updatedMsg = payload.new;
+//           setMessages((current) =>
+//             current.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
+//           );
+//         }
+//       )
+//       .subscribe();
   
-    channelRef.current = channel;
-  };
+//     channelRef.current = channel;
+//   };
+
+
+const subscribeToMessages = () => {
+  if (!selectedFriend || !currentUser) return;
+
+  const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
+
+  const channel = supabase
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      (payload) => {
+        const newMsg = payload.new;
+        const chatKey = getChatKey(currentUser.id, selectedFriend.id);
+        const decryptedMsg = {
+          ...newMsg,
+          message: decryptText(newMsg.message, chatKey)
+        };
+
+        setMessages((current) => {
+          if (current.some(m => m.id === newMsg.id)) return current;
+          return [...current, decryptedMsg];
+        });
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'messages' },
+      (payload) => {
+        const updatedMsg = payload.new;
+        const chatKey = getChatKey(currentUser.id, selectedFriend.id);
+        const decryptedUpdatedMsg = {
+          ...updatedMsg,
+          message: decryptText(updatedMsg.message, chatKey)
+        };
+
+        setMessages((current) =>
+          current.map((msg) => (msg.id === decryptedUpdatedMsg.id ? decryptedUpdatedMsg : msg))
+        );
+      }
+    )
+    .subscribe();
+
+  channelRef.current = channel;
+};
 
   const uploadFile = async (file) => {
     const fileExt = file.name.split('.').pop();
@@ -162,93 +250,189 @@ const [editingMessage, setEditingMessage] = useState(null);
     };
   };
 
-  const handleSendMessage = async (messageText) => {
-    if (!messageText && !selectedFile) return;
-    if (!selectedFriend || !currentUser) return;
+  // const handleSendMessage = async (messageText) => {
+  //   if (!messageText && !selectedFile) return;
+  //   if (!selectedFriend || !currentUser) return;
 
-    const tempId = `temp-${Date.now()}`;
-    const tempMessage = {
-      id: tempId,
-      sender_id: currentUser.id,
-      receiver_id: selectedFriend.id,
-      message: messageText || '',
-      status: 'sending',
-      created_at: new Date().toISOString(),
-      file_url: null,
-      file_name: null,
-      file_type: null,
-      file_size: null
-    };
+  //   const tempId = `temp-${Date.now()}`;
+  //   const tempMessage = {
+  //     id: tempId,
+  //     sender_id: currentUser.id,
+  //     receiver_id: selectedFriend.id,
+  //     message: messageText || '',
+  //     status: 'sending',
+  //     created_at: new Date().toISOString(),
+  //     file_url: null,
+  //     file_name: null,
+  //     file_type: null,
+  //     file_size: null
+  //   };
 
-    // Optimistic UI update
-    setMessages(prev => [...prev, tempMessage]);
-    setSending(true);
+  //   // Optimistic UI update
+  //   setMessages(prev => [...prev, tempMessage]);
+  //   setSending(true);
 
-    try {
-      let fileData = null;
+  //   try {
+  //     let fileData = null;
 
-      // Upload file if selected
-      if (selectedFile) {
-        console.log('📤 Uploading file...');
-        fileData = await uploadFile(selectedFile);
-        console.log('✅ File uploaded:', fileData);
-        setSelectedFile(null);
-      }
+  //     // Upload file if selected
+  //     if (selectedFile) {
+  //       console.log('📤 Uploading file...');
+  //       fileData = await uploadFile(selectedFile);
+  //       console.log('✅ File uploaded:', fileData);
+  //       setSelectedFile(null);
+  //     }
 
-      // Create message with 'sent' status
-      const { data, error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            sender_id: currentUser.id,
-            receiver_id: selectedFriend.id,
-            message: messageText || (fileData ? `Sent ${fileData.name}` : ''),
-            is_read: false,
-            status: 'sent',
-            file_url: fileData?.url || null,
-            file_name: fileData?.name || null,
-            file_type: fileData?.type || null,
-            file_size: fileData?.size || null
-          }
-        ])
-        .select()
-        .single();
+  //     // Create message with 'sent' status
+  //     const { data, error } = await supabase
+  //       .from('messages')
+  //       .insert([
+  //         {
+  //           sender_id: currentUser.id,
+  //           receiver_id: selectedFriend.id,
+  //           message: messageText || (fileData ? `Sent ${fileData.name}` : ''),
+  //           is_read: false,
+  //           status: 'sent',
+  //           file_url: fileData?.url || null,
+  //           file_name: fileData?.name || null,
+  //           file_type: fileData?.type || null,
+  //           file_size: fileData?.size || null
+  //         }
+  //       ])
+  //       .select()
+  //       .single();
 
-      if (error) throw error;
+  //     if (error) throw error;
 
-      console.log('✅ Message sent:', data);
+  //     console.log('✅ Message sent:', data);
 
-      // Replace temp message with real message
-      setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? data : msg)
-      );
+  //     // Replace temp message with real message
+  //     setMessages(prev => 
+  //       prev.map(msg => msg.id === tempId ? data : msg)
+  //     );
 
-      // Create notification
-      await supabase
-        .from('notifications')
-        .insert([
-          {
-            user_id: selectedFriend.id,
-            type: 'message',
-            sender_id: currentUser.id,
-            message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
-            is_read: false
-          }
-        ]);
+  //     // Create notification
+  //     await supabase
+  //       .from('notifications')
+  //       .insert([
+  //         {
+  //           user_id: selectedFriend.id,
+  //           type: 'message',
+  //           sender_id: currentUser.id,
+  //           message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
+  //           is_read: false
+  //         }
+  //       ]);
 
-    } catch (error) {
-      console.error('❌ Error sending message:', error);
+  //   } catch (error) {
+  //     console.error('❌ Error sending message:', error);
       
-      // Remove failed message
-      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+  //     // Remove failed message
+  //     setMessages(prev => prev.filter(msg => msg.id !== tempId));
       
-      alert('Failed to send message: ' + error.message);
-    } finally {
-      setSending(false);
-    }
-  };
+  //     alert('Failed to send message: ' + error.message);
+  //   } finally {
+  //     setSending(false);
+  //   }
+  // };
 
   // Mark message as read when visible on screen
+  
+ 
+const handleSendMessage = async (messageText) => {
+  if (!messageText && !selectedFile) return;
+  if (!selectedFriend || !currentUser) return;
+
+  const tempId = `temp-${Date.now()}`;
+  
+  // ✅ Generate chat key using env secret
+  const chatKey = getChatKey(currentUser.id, selectedFriend.id);
+
+  // ✅ Encrypt message before sending
+  const encryptedMessage = messageText ? encryptText(messageText, chatKey) : '';
+
+  const tempMessage = {
+    id: tempId,
+    sender_id: currentUser.id,
+    receiver_id: selectedFriend.id,
+    message: messageText || '',
+    status: 'sending',
+    created_at: new Date().toISOString(),
+    file_url: null,
+    file_name: null,
+    file_type: null,
+    file_size: null
+  };
+
+  // Optimistic UI update
+  setMessages(prev => [...prev, tempMessage]);
+  setSending(true);
+
+  try {
+    let fileData = null;
+
+    // Upload file if selected
+    if (selectedFile) {
+      console.log('📤 Uploading file...');
+      fileData = await uploadFile(selectedFile);
+      console.log('✅ File uploaded:', fileData);
+      setSelectedFile(null);
+    }
+
+    // Insert message into Supabase (with encrypted text)
+    const { data, error } = await supabase
+      .from('messages')
+      .insert([
+        {
+          sender_id: currentUser.id,
+          receiver_id: selectedFriend.id,
+          message: encryptedMessage || (fileData ? `Sent ${fileData.name}` : ''),
+          is_read: false,
+          status: 'sent',
+          file_url: fileData?.url || null,
+          file_name: fileData?.name || null,
+          file_type: fileData?.type || null,
+          file_size: fileData?.size || null
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log('✅ Message sent:', data);
+
+    // Replace temp message with real message from DB
+    setMessages(prev =>
+      prev.map(msg => (msg.id === tempId ? data : msg))
+    );
+
+    // Create notification
+    await supabase
+      .from('notifications')
+      .insert([
+        {
+          user_id: selectedFriend.id,
+          type: 'message',
+          sender_id: currentUser.id,
+          message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
+          is_read: false
+        }
+      ]);
+
+  } catch (error) {
+    console.error('❌ Error sending message:', error);
+
+    // Remove failed temp message
+    setMessages(prev => prev.filter(msg => msg.id !== tempId));
+
+    alert('Failed to send message: ' + error.message);
+  } finally {
+    setSending(false);
+  }
+};
+
+  
   const handleMessageVisible = async (messageId) => {
     if (!currentUser) return;
 
