@@ -4,8 +4,8 @@ import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import EmptyState from './EmptyState';
-import { encryptText, getChatKey } from "../utils/chatCrypto";
-import { decryptText, getChatKey } from "../utils/chatCrypto";
+import { encryptText, getChatKey } from "../../utils/chatCrypto";
+
 export default function ChatBox({ selectedFriend }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
