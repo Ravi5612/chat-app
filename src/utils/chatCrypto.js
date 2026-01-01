@@ -59,10 +59,11 @@ export async function encryptText(plainText, cryptoKey) {
     encoder.encode(plainText)
   );
 
-  return {
+  // Return as JSON string to support both TEXT and JSONB columns
+  return JSON.stringify({
     iv: Array.from(iv),
     content: Array.from(new Uint8Array(encryptedBuffer)),
-  };
+  });
 }
 
 /**
@@ -72,13 +73,32 @@ export async function decryptText(encryptedData, cryptoKey) {
   if (!encryptedData || !cryptoKey) return "";
 
   try {
+    let dataToDecrypt = encryptedData;
+
+    // Parse if it's a string (handles TEXT column or stringified JSON)
+    if (typeof encryptedData === 'string') {
+      try {
+        dataToDecrypt = JSON.parse(encryptedData);
+      } catch (e) {
+        // If parsing fails, it might be legacy plain text? 
+        // Or it's the broken "{}" string.
+        console.warn("Failed to parse encrypted data, might be plain text or broken:", encryptedData);
+        return ""; // Return empty for broken data
+      }
+    }
+
+    // Check if valid crypto object
+    if (!dataToDecrypt.iv || !dataToDecrypt.content) {
+      return "";
+    }
+
     const decryptedBuffer = await crypto.subtle.decrypt(
       {
         name: "AES-GCM",
-        iv: new Uint8Array(encryptedData.iv),
+        iv: new Uint8Array(dataToDecrypt.iv),
       },
       cryptoKey,
-      new Uint8Array(encryptedData.content)
+      new Uint8Array(dataToDecrypt.content)
     );
 
     return decoder.decode(decryptedBuffer);

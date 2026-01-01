@@ -14,7 +14,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
@@ -24,7 +24,7 @@ export default function LoginPage() {
       if (error) throw error;
 
       navigate('/home');
-      
+
     } catch (error) {
       setError(error.message);
       console.error('Login error:', error);
@@ -37,10 +37,8 @@ export default function LoginPage() {
     <div className="h-screen flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
       <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-[#F68537] rounded-2xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-4xl font-bold text-white">BK</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#F68537]">Baat-Kro</h1>
+          <img src="/logo.png" alt="Chat Warrior Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-lg" />
+          <h1 className="text-3xl font-bold text-[#F68537]">Chat Warrior</h1>
           <p className="text-gray-600 mt-2">Login to your account</p>
         </div>
 
@@ -49,7 +47,7 @@ export default function LoginPage() {
             {error}
           </div>
         )}
-        
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-gray-700 font-medium mb-2">Email</label>
@@ -63,7 +61,7 @@ export default function LoginPage() {
               disabled={loading}
             />
           </div>
-          
+
           {/* ✅ Password with Eye Icon */}
           <div>
             <label className="block text-gray-700 font-medium mb-2">Password</label>
@@ -99,7 +97,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
-          
+
           <button
             type="submit"
             disabled={loading}
@@ -108,10 +106,10 @@ export default function LoginPage() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        
+
         <p className="text-center text-gray-600 mt-4">
           Don't have an account?{' '}
-          <button 
+          <button
             onClick={() => navigate('/signup')}
             className="text-[#F68537] font-semibold hover:underline"
           >

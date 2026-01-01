@@ -18,14 +18,14 @@ export default function SignupPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     // ✅ Validation for confirm password
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
-    
+
     try {
       // Supabase signup
       const { data, error } = await supabase.auth.signUp({
@@ -58,7 +58,7 @@ export default function SignupPage() {
 
       alert('Signup successful! Please check your email for verification.');
       navigate('/login');
-      
+
     } catch (error) {
       setError(error.message);
       console.error('Signup error:', error);
@@ -71,10 +71,8 @@ export default function SignupPage() {
     <div className="h-screen flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
       <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-[#F68537] rounded-2xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-4xl font-bold text-white">BK</span>
-          </div>
-          <h1 className="text-3xl font-bold text-[#F68537]">Baat-Kro</h1>
+          <img src="/logo.png" alt="Chat Warrior Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-lg" />
+          <h1 className="text-3xl font-bold text-[#F68537]">Chat Warrior</h1>
           <p className="text-gray-600 mt-2">Create your account</p>
         </div>
 
@@ -83,7 +81,7 @@ export default function SignupPage() {
             {error}
           </div>
         )}
-        
+
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
             <label className="block text-gray-700 font-medium mb-2">Name</label>
@@ -123,7 +121,7 @@ export default function SignupPage() {
               disabled={loading}
             />
           </div>
-          
+
           {/* ✅ Password with Eye Icon */}
           <div>
             <label className="block text-gray-700 font-medium mb-2">Password</label>
@@ -192,7 +190,7 @@ export default function SignupPage() {
               </button>
             </div>
           </div>
-          
+
           <button
             type="submit"
             disabled={loading}
@@ -201,10 +199,10 @@ export default function SignupPage() {
             {loading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
-        
+
         <p className="text-center text-gray-600 mt-4">
           Already have an account?{' '}
-          <button 
+          <button
             onClick={() => navigate('/login')}
             className="text-[#F68537] font-semibold hover:underline"
           >

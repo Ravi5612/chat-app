@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import HomePage from "./pages/HomePage";
+import LandingPage from "./pages/LandingPage";
 import NotificationPage from "./pages/NotificationPage";
 import SentRequestsPage from "./pages/SentRequestsPage";
 import ReceivedRequestsPage from "./pages/ReceivedRequestsPage";
@@ -14,10 +15,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
-        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        
+
         {/* Protected routes with persistent layout */}
         <Route
           element={

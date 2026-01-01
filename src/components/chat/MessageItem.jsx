@@ -2,21 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import MessageStatus from './MessageStatus';
 import { supabase } from '../../supabase/client'; // Adjust path as needed
 
-export default function MessageItem({ message, isCurrentUser, onMessageVisible, currentUserId,onEditMessage  }) {
+export default function MessageItem({ message, isCurrentUser, onMessageVisible, currentUserId, onEditMessage }) {
   const isSent = isCurrentUser;
   const isImage = message.file_type?.startsWith('image/');
   const isVideo = message.file_type?.startsWith('video/');
   const messageRef = useRef(null);
   const reactionsRef = useRef(null);
   const reactionButtonRef = useRef(null);
-  
+
   // Reactions state - हमेशा array format में initialize करें
   const [reactions, setReactions] = useState([]);
   const [showReactions, setShowReactions] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
   const [userReactions, setUserReactions] = useState([]);
-const [editingMessageId, setEditingMessageId] = useState(null); // kaunsa message edit ho raha hai
-const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
+  const [editingMessageId, setEditingMessageId] = useState(null); // kaunsa message edit ho raha hai
+  const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
 
   // Available reactions with labels
   const availableReactions = [
@@ -48,16 +48,6 @@ const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
     observer.observe(messageRef.current);
     return () => observer.disconnect();
   }, [message.id, message.status, isSent, onMessageVisible]);
-
-  // Load reactions from database
-  useEffect(() => {
-    fetchReactions();
-    setupRealtimeSubscription();
-    
-    return () => {
-      // Cleanup subscription if needed
-    };
-  }, [message.id]);
 
   // Fetch reactions for this message
   const fetchReactions = async () => {
@@ -104,6 +94,7 @@ const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
 
   // Setup realtime subscription
   const setupRealtimeSubscription = () => {
+    console.log(`🔌 Subscribing to reactions for message: ${message.id}`);
     const channel = supabase
       .channel(`reactions:${message.id}`)
       .on(
@@ -114,18 +105,30 @@ const [newMessageText, setNewMessageText] = useState(''); // edit input ka value
           table: 'message_reactions',
           filter: `message_id=eq.${message.id}`
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Reaction update received:', payload);
           fetchReactions(); // Refresh reactions
         }
       )
       .subscribe();
 
     return () => {
+      console.log(`🔌 Unsubscribing from reactions: ${message.id}`);
       supabase.removeChannel(channel);
     };
   };
 
-const handleSaveEdit = async (messageId) => {
+  // Load reactions from database
+  useEffect(() => {
+    fetchReactions();
+    const cleanup = setupRealtimeSubscription();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [message.id]);
+
+  const handleSaveEdit = async (messageId) => {
     if (!newMessageText.trim() || newMessageText === message.message) {
       setEditingMessageId(null);
       return;
@@ -134,7 +137,7 @@ const handleSaveEdit = async (messageId) => {
     try {
       // 🚀 Parent ka function call karo (Lifting state up)
       await onEditMessage(messageId, newMessageText);
-      
+
       // Local state reset kar do
       setEditingMessageId(null);
       setNewMessageText('');
@@ -144,14 +147,14 @@ const handleSaveEdit = async (messageId) => {
     }
   };
   // Handle reaction click - FIXED VERSION
- const handleReaction = async (emoji) => {
+  const handleReaction = async (emoji) => {
     if (!currentUserId) return;
-    
+
     setIsReacting(true);
     try {
       // Check if user already reacted with this emoji
       const existingReaction = userReactions.includes(emoji);
-      
+
       if (existingReaction) {
         // Remove reaction
         const { error } = await supabase
@@ -164,7 +167,7 @@ const handleSaveEdit = async (messageId) => {
           });
 
         if (error) throw error;
-        
+
         // Update local state
         setUserReactions(prev => prev.filter(e => e !== emoji));
       } else {
@@ -178,15 +181,15 @@ const handleSaveEdit = async (messageId) => {
           });
 
         if (error) throw error;
-        
+
         // Update local state
         setUserReactions(prev => [...prev, emoji]);
       }
-      
+
       // Update reactions summary
       setReactions(prevReactions => {
         const existingIndex = prevReactions.findIndex(r => r.emoji === emoji);
-        
+
         if (existingReaction) {
           // Decrease count or remove
           if (prevReactions[existingIndex].count === 1) {
@@ -223,7 +226,7 @@ const handleSaveEdit = async (messageId) => {
           }
         }
       });
-      
+
     } catch (error) {
       console.error('Error updating reaction:', error);
     } finally {
@@ -236,9 +239,9 @@ const handleSaveEdit = async (messageId) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        reactionsRef.current && 
+        reactionsRef.current &&
         !reactionsRef.current.contains(event.target) &&
-        reactionButtonRef.current && 
+        reactionButtonRef.current &&
         !reactionButtonRef.current.contains(event.target)
       ) {
         setShowReactions(false);
@@ -281,22 +284,21 @@ const handleSaveEdit = async (messageId) => {
   };
 
   return (
-    <div 
-      ref={messageRef} 
+    <div
+      ref={messageRef}
       className={`flex ${isSent ? 'justify-end' : 'justify-start'} animate-fadeIn relative group`}
     >
       <div
-        className={`max-w-[70%] md:max-w-[60%] rounded-2xl px-4 py-2.5 shadow-sm border relative ${
-          isSent
-            ? 'bg-[#F68537] text-white border-[#F68537] rounded-br-none'
-            : 'bg-white border-[#F68537] text-gray-800 rounded-bl-none'
-        }`}
+        className={`max-w-[70%] md:max-w-[60%] rounded-2xl px-4 py-2.5 shadow-sm border relative ${isSent
+          ? 'bg-[#F68537] text-white border-[#F68537] rounded-br-none'
+          : 'bg-white border-[#F68537] text-gray-800 rounded-bl-none'
+          }`}
       >
         {/* Image Display */}
         {isImage && message.file_url && (
           <a href={message.file_url} target="_blank" rel="noopener noreferrer">
-            <img 
-              src={message.file_url} 
+            <img
+              src={message.file_url}
               alt={message.file_name || 'Image'}
               className="max-w-[280px] max-h-[200px] md:max-w-[350px] md:max-h-[280px] w-auto h-auto object-contain rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity border border-[#F68537]"
             />
@@ -305,8 +307,8 @@ const handleSaveEdit = async (messageId) => {
 
         {/* Video Display */}
         {isVideo && message.file_url && (
-          <video 
-            src={message.file_url} 
+          <video
+            src={message.file_url}
             controls
             className="max-w-[280px] max-h-[200px] md:max-w-[350px] md:max-h-[280px] w-auto h-auto rounded-lg mb-2 border border-[#F68537]"
           />
@@ -314,13 +316,12 @@ const handleSaveEdit = async (messageId) => {
 
         {/* Other Files */}
         {message.file_url && !isImage && !isVideo && (
-          <a 
-            href={message.file_url} 
-            target="_blank" 
+          <a
+            href={message.file_url}
+            target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-2 mb-2 p-2 rounded-lg border ${
-              isSent ? 'bg-white/20 border-white/30' : 'bg-gray-100 border-[#F68537]'
-            }`}
+            className={`flex items-center gap-2 mb-2 p-2 rounded-lg border ${isSent ? 'bg-white/20 border-white/30' : 'bg-gray-100 border-[#F68537]'
+              }`}
           >
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -333,82 +334,80 @@ const handleSaveEdit = async (messageId) => {
         )}
 
         {/* Message Text */}
-       {editingMessageId === message.id ? (
-  // ✏️ EDIT MODE
-  <div className="flex flex-col gap-2">
-    <textarea
-      value={newMessageText}
-      onChange={(e) => setNewMessageText(e.target.value)}
-      rows={2}
-      autoFocus
-      className="w-full text-sm text-gray-800 rounded-lg p-2 border border-gray-300
+        {editingMessageId === message.id ? (
+          // ✏️ EDIT MODE
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={newMessageText}
+              onChange={(e) => setNewMessageText(e.target.value)}
+              rows={2}
+              autoFocus
+              className="w-full text-sm text-gray-800 rounded-lg p-2 border border-gray-300
                  focus:outline-none focus:border-[#F68537]"
-    />
+            />
 
-    <div className="flex justify-end gap-2">
-      {/* CANCEL */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setEditingMessageId(null);
-          setNewMessageText('');
-        }}
-        className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'}"
-      >
-        Cancel
-      </button>
+            <div className="flex justify-end gap-2">
+              {/* CANCEL */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingMessageId(null);
+                  setNewMessageText('');
+                }}
+                className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'}"
+              >
+                Cancel
+              </button>
 
-      {/* SAVE */}
-      <button
-        onClick={(e) => {
-           e.stopPropagation();
-          handleSaveEdit(message.id);
-        }}
-        className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'"
-      >
-        Save
-      </button>
-    </div>
-  </div>
-) : (
-  // 💬 NORMAL MODE
-  message.message && (
-    <p className="text-sm md:text-base break-words whitespace-pre-wrap">
-      {message.message}
-      {message.edited && (
-        <span className="text-[10px] ml-1 opacity-70">(edited)</span>
-      )}
-    </p>
-  )
-)}
+              {/* SAVE */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSaveEdit(message.id);
+                }}
+                className="text-xs font-bold ${isSent ? 'text-white' : 'text-[#F68537]'"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          // 💬 NORMAL MODE
+          message.message && (
+            <p className="text-sm md:text-base break-words whitespace-pre-wrap">
+              {message.message}
+              {message.edited && (
+                <span className="text-[10px] ml-1 opacity-70">(edited)</span>
+              )}
+            </p>
+          )
+        )}
 
 
         {/* Display Reactions */}
+        {/* Display Reactions */}
         {reactions.length > 0 && (
-          <div 
-            className={`absolute -bottom-2 ${
-              isSent ? '-left-2' : '-right-2'
-            } flex items-center gap-1 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm z-10 cursor-default`}
+          <div
+            className={`absolute -bottom-3.5 ${isSent ? '-left-2' : '-right-2'
+              } flex items-center gap-1 z-10 cursor-default`}
             onClick={(e) => e.stopPropagation()}
           >
             {reactions.map((reaction, idx) => (
-              <div 
-                key={idx} 
-                className={`flex items-center px-1.5 py-0.5 rounded ${
-                  userReactions.includes(reaction.emoji) 
-                    ? 'bg-[#F68537]/10 border border-[#F68537]/30' 
-                    : 'bg-gray-50'
-                }`}
+              <div
+                key={idx}
+                className={`flex items-center px-1.5 py-0.5 rounded-full ${userReactions.includes(reaction.emoji)
+                  ? 'border border-[#F68537] bg-[#F68537]/10'
+                  : 'bg-white/80 border border-gray-200'
+                  } shadow-sm`}
                 onClick={() => handleReaction(reaction.emoji)}
                 title={`${reaction.count} reaction(s)`}
               >
                 <span className="text-sm">{reaction.emoji}</span>
                 {reaction.count > 1 && (
-                  <span className={`text-xs ml-1 ${
-                    userReactions.includes(reaction.emoji) 
-                      ? 'text-[#F68537]' 
-                      : 'text-gray-600'
-                  }`}>
+                  <span className={`text-xs ml-1 ${userReactions.includes(reaction.emoji)
+                    ? 'text-[#F68537]'
+                    : 'text-gray-600'
+                    }`}>
                     {reaction.count}
                   </span>
                 )}
@@ -422,28 +421,26 @@ const handleSaveEdit = async (messageId) => {
           <span>{formatTime(message.created_at)}</span>
           {isSent && <MessageStatus status={message.status || 'sent'} />}
         </div>
-{isSent && editingMessageId !== message.id && (
-  <button
-    className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ${
-      isSent ? '-left-16' : '-right-16'
-    } p-1.5 bg-white border border-gray-200 rounded-full shadow-sm
+        {isSent && editingMessageId !== message.id && (
+          <button
+            className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ${isSent ? '-left-16' : '-right-16'
+              } p-1.5 bg-white border border-gray-200 rounded-full shadow-sm
       text-blue-600 hover:border-blue-600 hover:scale-110`}
-    onClick={(e) => {
-      e.stopPropagation();
-      setEditingMessageId(message.id);
-      setNewMessageText(message.message || '');
-    }}
-    title="Edit message"
-  >
-    ✏️
-  </button>
-)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingMessageId(message.id);
+              setNewMessageText(message.message || '');
+            }}
+            title="Edit message"
+          >
+            ✏️
+          </button>
+        )}
         {/* Reaction Button */}
         <button
           ref={reactionButtonRef}
-          className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ${
-            isSent ? '-left-8' : '-right-8'
-          } p-1.5 bg-white border border-gray-200 rounded-full shadow-sm text-gray-600 hover:text-[#F68537] hover:border-[#F68537] hover:scale-110`}
+          className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 ${isSent ? '-left-8' : '-right-8'
+            } p-1.5 bg-white border border-gray-200 rounded-full shadow-sm text-gray-600 hover:text-[#F68537] hover:border-[#F68537] hover:scale-110`}
           onClick={() => setShowReactions(!showReactions)}
           disabled={isReacting}
           title="Add reaction"
@@ -457,7 +454,7 @@ const handleSaveEdit = async (messageId) => {
 
       {/* Reactions Popup */}
       {showReactions && (
-        <div 
+        <div
           ref={reactionsRef}
           className={`absolute ${isSent ? 'right-0' : 'left-0'} -top-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 flex items-center gap-1 z-50 animate-fadeIn`}
           onClick={(e) => e.stopPropagation()}
@@ -466,11 +463,10 @@ const handleSaveEdit = async (messageId) => {
             <button
               key={emoji}
               onClick={() => handleReaction(emoji)}
-              className={`p-1.5 rounded-full text-lg hover:bg-gray-100 transition-colors ${
-                userReactions.includes(emoji) 
-                  ? 'bg-[#F68537]/10 text-[#F68537] ring-1 ring-[#F68537]/30' 
-                  : ''
-              }`}
+              className={`p-1.5 rounded-full text-lg hover:bg-gray-100 transition-colors ${userReactions.includes(emoji)
+                ? 'bg-[#F68537]/10 text-[#F68537] ring-1 ring-[#F68537]/30'
+                : ''
+                }`}
               title={label}
               disabled={isReacting}
             >

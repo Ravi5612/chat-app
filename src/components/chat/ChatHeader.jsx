@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import Calling from "./Vcall";
 import VCall from "./calling";
-export default function ChatHeader({ friend }) {
+export default function ChatHeader({ friend, isOnline }) {
   const [showMenu, setShowMenu] = useState(false);
 
+  if (!friend) return null;
   if (!friend) return null;
 
   const handleBlock = () => {
@@ -34,9 +35,10 @@ export default function ChatHeader({ friend }) {
     setShowMenu(false);
   };
 
-    const comingSoon = () => {
+  const comingSoon = () => {
     alert("Feature coming soon 🚧");
   };
+
   return (
     <div className="flex-shrink-0 bg-white border border-[#F68537] p-4 shadow-md relative">
       <div className="flex items-center gap-3">
@@ -46,7 +48,7 @@ export default function ChatHeader({ friend }) {
           alt={friend.name}
           className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-[#F68537] object-cover"
         />
-        
+
         {/* Name and Status */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -54,19 +56,26 @@ export default function ChatHeader({ friend }) {
               {friend.name}
             </h2>
             {/* Online Status Badge */}
-            <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse"></span>
-              Online
-            </span>
+            {isOnline ? (
+              <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse"></span>
+                Online
+              </span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
+                Offline
+              </span>
+            )}
           </div>
           <p className="text-xs md:text-sm text-gray-600 truncate">
             {friend.email}
           </p>
         </div>
- <div className="flex items-center gap-3">
-      <Calling onClick={comingSoon} />
-      <VCall onClick={comingSoon} />
-    </div>
+        <div className="flex items-center gap-3">
+          <Calling onClick={comingSoon} />
+          <VCall onClick={comingSoon} />
+        </div>
         {/* 3-Dot Menu */}
         <div className="relative">
           <button
@@ -83,8 +92,8 @@ export default function ChatHeader({ friend }) {
           {showMenu && (
             <>
               {/* Backdrop to close menu */}
-              <div 
-                className="fixed inset-0 z-10" 
+              <div
+                className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               ></div>
 

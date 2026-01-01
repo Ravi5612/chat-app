@@ -4,9 +4,9 @@ import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import EmptyState from './EmptyState';
-import { encryptText, getChatKey } from "../../utils/chatCrypto";
+import { encryptText, decryptText, getChatKey } from "../../utils/chatCrypto";
 
-export default function ChatBox({ selectedFriend }) {
+export default function ChatBox({ selectedFriend, isOnline }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -14,7 +14,7 @@ export default function ChatBox({ selectedFriend }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const channelRef = useRef(null);
   const isSubscribedRef = useRef(false);
-const [editingMessage, setEditingMessage] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
   // Get current user
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -37,7 +37,7 @@ const [editingMessage, setEditingMessage] = useState(null);
     }
 
     console.log('🔄 Loading chat with:', selectedFriend.name);
-    
+
     loadMessages();
     subscribeToMessages();
 
@@ -105,130 +105,132 @@ const [editingMessage, setEditingMessage] = useState(null);
   // };
 
 
-const loadMessages = async () => {
-  if (!selectedFriend || !currentUser) return;
+  const loadMessages = async () => {
+    if (!selectedFriend || !currentUser) return;
 
-  setLoading(true);
-  try {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUser.id})`)
-      .order('created_at', { ascending: true });
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUser.id})`)
+        .order('created_at', { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // 🔐 Ab yahan decrypt karenge messages ko
-    const chatKey = getChatKey(currentUser.id, selectedFriend.id);
+      // 🔐 Ab yahan decrypt karenge messages ko
+      const chatKey = await getChatKey(currentUser.id, selectedFriend.id);
 
-    const decryptedMessages = data.map(msg => ({
-      ...msg,
-      message: decryptText(msg.message, chatKey)
-    }));
+      const decryptedMessages = await Promise.all(data.map(async (msg) => ({
+        ...msg,
+        message: await decryptText(msg.message, chatKey)
+      })));
 
-    console.log('✅ Loaded & decrypted messages:', decryptedMessages.length);
+      console.log('✅ Loaded & decrypted messages:', decryptedMessages.length);
 
-    setMessages(decryptedMessages || []);
+      setMessages(decryptedMessages || []);
 
-    // Mark messages as read
-    await supabase
-      .from('messages')
-      .update({ is_read: true })
-      .eq('sender_id', selectedFriend.id)
-      .eq('receiver_id', currentUser.id)
-      .eq('is_read', false);
+      // Mark messages as read
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('sender_id', selectedFriend.id)
+        .eq('receiver_id', currentUser.id)
+        .eq('is_read', false);
 
-  } catch (error) {
-    console.error('❌ Error loading messages:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+    } catch (error) {
+      console.error('❌ Error loading messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-//  const subscribeToMessages = () => {
-//     if (!selectedFriend || !currentUser) return;
-    
-//     const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
-  
-//     const channel = supabase
-//       .channel(channelName)
-//       .on(
-//         'postgres_changes',
-//         { event: 'INSERT', schema: 'public', table: 'messages' },
-//         (payload) => {
-//           const newMsg = payload.new;
-//           setMessages((current) => {
-//              if (current.some(m => m.id === newMsg.id)) return current;
-//              return [...current, newMsg];
-//           });
-//         }
-//       )
-//       .on(
-//         'postgres_changes',
-//         { event: 'UPDATE', schema: 'public', table: 'messages' },
-//         (payload) => {
-//           // 🔥 YEH IMPORTANT HAI: Jab edit ho, toh list ko update karo
-//           const updatedMsg = payload.new;
-//           setMessages((current) =>
-//             current.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
-//           );
-//         }
-//       )
-//       .subscribe();
-  
-//     channelRef.current = channel;
-//   };
+  //  const subscribeToMessages = () => {
+  //     if (!selectedFriend || !currentUser) return;
+
+  //     const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
+
+  //     const channel = supabase
+  //       .channel(channelName)
+  //       .on(
+  //         'postgres_changes',
+  //         { event: 'INSERT', schema: 'public', table: 'messages' },
+  //         (payload) => {
+  //           const newMsg = payload.new;
+  //           setMessages((current) => {
+  //              if (current.some(m => m.id === newMsg.id)) return current;
+  //              return [...current, newMsg];
+  //           });
+  //         }
+  //       )
+  //       .on(
+  //         'postgres_changes',
+  //         { event: 'UPDATE', schema: 'public', table: 'messages' },
+  //         (payload) => {
+  //           // 🔥 YEH IMPORTANT HAI: Jab edit ho, toh list ko update karo
+  //           const updatedMsg = payload.new;
+  //           setMessages((current) =>
+  //             current.map((msg) => (msg.id === updatedMsg.id ? updatedMsg : msg))
+  //           );
+  //         }
+  //       )
+  //       .subscribe();
+
+  //     channelRef.current = channel;
+  //   };
 
 
-const subscribeToMessages = () => {
-  if (!selectedFriend || !currentUser) return;
+  const subscribeToMessages = () => {
+    if (!selectedFriend || !currentUser) return;
 
-  const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
+    const channelName = `chat-${Math.min(currentUser.id, selectedFriend.id)}-${Math.max(currentUser.id, selectedFriend.id)}`;
 
-  const channel = supabase
-    .channel(channelName)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages' },
-      (payload) => {
-        const newMsg = payload.new;
-        const chatKey = getChatKey(currentUser.id, selectedFriend.id);
-        const decryptedMsg = {
-          ...newMsg,
-          message: decryptText(newMsg.message, chatKey)
-        };
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        async (payload) => {
+          const newMsg = payload.new;
+          const chatKey = await getChatKey(currentUser.id, selectedFriend.id);
+          const decryptedMsg = {
+            ...newMsg,
+            message: await decryptText(newMsg.message, chatKey)
+          };
 
-        setMessages((current) => {
-          if (current.some(m => m.id === newMsg.id)) return current;
-          return [...current, decryptedMsg];
-        });
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'messages' },
-      (payload) => {
-        const updatedMsg = payload.new;
-        const chatKey = getChatKey(currentUser.id, selectedFriend.id);
-        const decryptedUpdatedMsg = {
-          ...updatedMsg,
-          message: decryptText(updatedMsg.message, chatKey)
-        };
+          setMessages((current) => {
+            if (current.some(m => m.id === newMsg.id)) return current;
+            return [...current, decryptedMsg];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        async (payload) => {
+          console.log('🔄 Realtime UPDATE received:', payload.new);
+          const updatedMsg = payload.new;
+          const chatKey = await getChatKey(currentUser.id, selectedFriend.id);
+          const decryptedUpdatedMsg = {
+            ...updatedMsg,
+            message: await decryptText(updatedMsg.message, chatKey)
+          };
+          console.log('✅ Update processed:', decryptedUpdatedMsg);
 
-        setMessages((current) =>
-          current.map((msg) => (msg.id === decryptedUpdatedMsg.id ? decryptedUpdatedMsg : msg))
-        );
-      }
-    )
-    .subscribe();
+          setMessages((current) =>
+            current.map((msg) => (msg.id === decryptedUpdatedMsg.id ? decryptedUpdatedMsg : msg))
+          );
+        }
+      )
+      .subscribe();
 
-  channelRef.current = channel;
-};
+    channelRef.current = channel;
+  };
 
   const uploadFile = async (file) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
-    
+
     const { data, error } = await supabase.storage
       .from('chat-files')
       .upload(fileName, file, {
@@ -326,10 +328,10 @@ const subscribeToMessages = () => {
 
   //   } catch (error) {
   //     console.error('❌ Error sending message:', error);
-      
+
   //     // Remove failed message
   //     setMessages(prev => prev.filter(msg => msg.id !== tempId));
-      
+
   //     alert('Failed to send message: ' + error.message);
   //   } finally {
   //     setSending(false);
@@ -337,114 +339,119 @@ const subscribeToMessages = () => {
   // };
 
   // Mark message as read when visible on screen
-  
- 
-const handleSendMessage = async (messageText) => {
-  if (!messageText && !selectedFile) return;
-  if (!selectedFriend || !currentUser) return;
 
-  const tempId = `temp-${Date.now()}`;
-  
-  // ✅ Generate chat key using env secret
-  const chatKey = getChatKey(currentUser.id, selectedFriend.id);
 
-  // ✅ Encrypt message before sending
-  const encryptedMessage = messageText ? encryptText(messageText, chatKey) : '';
+  const handleSendMessage = async (messageText) => {
+    if (!messageText && !selectedFile) return;
+    if (!selectedFriend || !currentUser) return;
 
-  const tempMessage = {
-    id: tempId,
-    sender_id: currentUser.id,
-    receiver_id: selectedFriend.id,
-    message: messageText || '',
-    status: 'sending',
-    created_at: new Date().toISOString(),
-    file_url: null,
-    file_name: null,
-    file_type: null,
-    file_size: null
+    const tempId = `temp-${Date.now()}`;
+
+    // Optimistic UI update - SHOW PLAINTEXT
+    const tempMessage = {
+      id: tempId,
+      sender_id: currentUser.id,
+      receiver_id: selectedFriend.id,
+      message: messageText || '',
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      file_url: null,
+      file_name: null,
+      file_type: null,
+      file_size: null
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    setSending(true);
+
+    try {
+      // ✅ Generate chat key using env secret
+      const chatKey = await getChatKey(currentUser.id, selectedFriend.id);
+
+      // ✅ Encrypt message before sending
+      const encryptedMessage = messageText ? await encryptText(messageText, chatKey) : null;
+
+      let fileData = null;
+
+      // Upload file if selected
+      if (selectedFile) {
+        console.log('📤 Uploading file...');
+        fileData = await uploadFile(selectedFile);
+        console.log('✅ File uploaded:', fileData);
+        setSelectedFile(null);
+      }
+
+      // Insert message into Supabase (with encrypted text)
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([
+          {
+            sender_id: currentUser.id,
+            receiver_id: selectedFriend.id,
+            message: encryptedMessage || (fileData ? `Sent ${fileData.name}` : ''),
+            is_read: false,
+            status: 'sent',
+            file_url: fileData?.url || null,
+            file_name: fileData?.name || null,
+            file_type: fileData?.type || null,
+            file_size: fileData?.size || null
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Message sent:', data);
+
+      // Replace temp message with real message from DB, but KEEP PLAINTEXT for local display logic if needed?
+      // Actually data.message is encrypted. We need to store decrypted version in state.
+      const decryptedSentMsg = {
+        ...data,
+        message: messageText || (fileData ? `Sent ${fileData.name}` : '') // We know what we sent!
+      };
+
+      setMessages(prev =>
+        prev.map(msg => (msg.id === tempId ? decryptedSentMsg : msg))
+      );
+
+      // Create notification
+      await supabase
+        .from('notifications')
+        .insert([
+          {
+            user_id: selectedFriend.id,
+            type: 'message',
+            sender_id: currentUser.id,
+            message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
+            is_read: false
+          }
+        ]);
+
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+
+      // Remove failed temp message
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+
+      alert('Failed to send message: ' + error.message);
+    } finally {
+      setSending(false);
+    }
   };
 
-  // Optimistic UI update
-  setMessages(prev => [...prev, tempMessage]);
-  setSending(true);
 
-  try {
-    let fileData = null;
-
-    // Upload file if selected
-    if (selectedFile) {
-      console.log('📤 Uploading file...');
-      fileData = await uploadFile(selectedFile);
-      console.log('✅ File uploaded:', fileData);
-      setSelectedFile(null);
-    }
-
-    // Insert message into Supabase (with encrypted text)
-    const { data, error } = await supabase
-      .from('messages')
-      .insert([
-        {
-          sender_id: currentUser.id,
-          receiver_id: selectedFriend.id,
-          message: encryptedMessage || (fileData ? `Sent ${fileData.name}` : ''),
-          is_read: false,
-          status: 'sent',
-          file_url: fileData?.url || null,
-          file_name: fileData?.name || null,
-          file_type: fileData?.type || null,
-          file_size: fileData?.size || null
-        }
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    console.log('✅ Message sent:', data);
-
-    // Replace temp message with real message from DB
-    setMessages(prev =>
-      prev.map(msg => (msg.id === tempId ? data : msg))
-    );
-
-    // Create notification
-    await supabase
-      .from('notifications')
-      .insert([
-        {
-          user_id: selectedFriend.id,
-          type: 'message',
-          sender_id: currentUser.id,
-          message: `New message from ${currentUser.user_metadata?.name || currentUser.email}`,
-          is_read: false
-        }
-      ]);
-
-  } catch (error) {
-    console.error('❌ Error sending message:', error);
-
-    // Remove failed temp message
-    setMessages(prev => prev.filter(msg => msg.id !== tempId));
-
-    alert('Failed to send message: ' + error.message);
-  } finally {
-    setSending(false);
-  }
-};
-
-  
   const handleMessageVisible = async (messageId) => {
     if (!currentUser) return;
 
     const { error } = await supabase
       .from('messages')
-      .update({ 
+      .update({
         status: 'read',
         is_read: true
       })
       .eq('id', messageId)
-      .eq('receiver_id', currentUser.id)
-      .eq('status', 'delivered');
+      .eq('receiver_id', currentUser.id);
 
     if (error) {
       console.error('❌ Error marking as read:', error);
@@ -453,33 +460,43 @@ const handleSendMessage = async (messageText) => {
     }
   };
 
-const handleEditMessage = async (messageId, newText) => {
-  try {
-    console.log("✏️ Updating ID:", messageId);
-    console.log("👤 Current User ID:", currentUser.id);
-console.log("ID Type:", typeof messageId, "Value:", messageId);
-console.log("SenderID Type:", typeof currentUser.id, "Value:", currentUser.id);
-    const { data, error, count } = await supabase
-      .from('messages')
-      .update({ 
-        message: newText, 
-        edited: true 
-      })
-      .eq('id', messageId)
-      .eq('sender_id', currentUser.id) // Check karo ye ID sahi hai?
-      .select(); // data wapas mangwao confirm karne ke liye
+  const handleEditMessage = async (messageId, newText) => {
+    try {
+      console.log("✏️ Updating ID:", messageId);
+      console.log("👤 Current User ID:", currentUser.id);
+      console.log("ID Type:", typeof messageId, "Value:", messageId);
+      console.log("SenderID Type:", typeof currentUser.id, "Value:", currentUser.id);
 
-    if (error) throw error;
+      // Encrypt before sending
+      const chatKey = await getChatKey(currentUser.id, selectedFriend.id);
+      const encryptedMessage = await encryptText(newText, chatKey);
 
-    if (!data || data.length === 0) {
-      console.error("⚠️ Row match nahi hui! Matlab sender_id ya messageId galat hai.");
-    } else {
-      console.log("✅ DB Update Result:", data);
+      const { data, error, count } = await supabase
+        .from('messages')
+        .update({
+          message: encryptedMessage,
+          edited: true
+        })
+        .eq('id', messageId)
+        .eq('sender_id', currentUser.id) // Check karo ye ID sahi hai?
+        .select(); // data wapas mangwao confirm karne ke liye
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        console.error("⚠️ Row match nahi hui! Matlab sender_id ya messageId galat hai.");
+      } else {
+        console.log("✅ DB Update Result:", data);
+
+        // Update local state with PLAINTEXT
+        setMessages((current) =>
+          current.map((msg) => (msg.id === messageId ? { ...msg, message: newText, edited: true } : msg))
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error:', error.message);
     }
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-  }
-};
+  };
 
   const handleFileSelect = (file) => {
     console.log('📁 File selected:', file);
@@ -502,19 +519,19 @@ console.log("SenderID Type:", typeof currentUser.id, "Value:", currentUser.id);
   return (
     <div className="flex-1 flex flex-col h-full bg-gradient-to-b from-[#FFF5E6] to-white overflow-hidden">
       {/* Chat Header */}
-      <ChatHeader friend={selectedFriend} />
+      <ChatHeader friend={selectedFriend} isOnline={isOnline} />
 
       {/* Messages List */}
-     <MessageList 
-  messages={messages}
-  loading={loading}
-  currentUserId={currentUser?.id}
-  onMessageVisible={handleMessageVisible}
-  onEditMessage={handleEditMessage} // 👈 console.log hata kar ye function pass karo
-/>
+      <MessageList
+        messages={messages}
+        loading={loading}
+        currentUserId={currentUser?.id}
+        onMessageVisible={handleMessageVisible}
+        onEditMessage={handleEditMessage} // 👈 console.log hata kar ye function pass karo
+      />
 
       {/* Chat Input */}
-      <ChatInput 
+      <ChatInput
         onSendMessage={handleSendMessage}
         disabled={sending}
         selectedFile={selectedFile}
