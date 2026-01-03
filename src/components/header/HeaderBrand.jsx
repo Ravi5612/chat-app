@@ -36,7 +36,7 @@ export default function HeaderBrand({ isLoggedIn, user, userProfile, company }) 
           />
           <span
             onClick={handleClick}
-            className="hidden md:block text-base md:text-lg font-bold text-white tracking-wide cursor-pointer hover:text-orange-100 transition-colors drop-shadow-md font-sans normal-case whitespace-nowrap"
+            className="block max-w-[120px] md:max-w-none truncate text-sm md:text-lg font-bold text-white tracking-wide cursor-pointer hover:text-orange-100 transition-colors drop-shadow-md font-sans normal-case"
           >
             {getDisplayName()}
           </span>
