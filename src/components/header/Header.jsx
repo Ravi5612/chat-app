@@ -5,20 +5,23 @@ import HeaderBrand from './HeaderBrand'; // ✅ Fixed
 import DesktopNav from './DesktopNav';   // ✅ Fixed
 import MobileNav from './MobileNav';     // ✅ Fixed - Was importing DesktopNav!
 
-export default function Header({ onSearch, onClearSearch }) {
+import { useSearch } from '../../context/SearchContext';
+
+export default function Header() {
+  const { handleSearch: onSearch, handleClearSearch: onClearSearch } = useSearch();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  
+
   const [notificationCount, setNotificationCount] = useState(0);
   const [sentRequestsCount, setSentRequestsCount] = useState(0);
   const [receivedRequestsCount, setReceivedRequestsCount] = useState(0);
-  
+
   const company = {
-    name: "Baat-Kro",
-    logo: "https://via.placeholder.com/40?text=BK"
+    name: "Chat Warrior",
+    logo: "/logo.png"
   };
 
   useEffect(() => {
@@ -107,13 +110,13 @@ export default function Header({ onSearch, onClearSearch }) {
           .select('id')
           .eq('user_id', userId)
           .eq('is_read', false),
-        
+
         supabase
           .from('friend_requests')
           .select('id')
           .eq('sender_id', userId)
           .eq('status', 'pending'),
-        
+
         supabase
           .from('friend_requests')
           .select('id')
@@ -202,12 +205,17 @@ export default function Header({ onSearch, onClearSearch }) {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // 1. Clear local state immediately for instant UI feedback
     setIsLoggedIn(false);
     setUser(null);
     setUserProfile(null);
     resetCounts();
-    navigate('/login');
+
+    // 2. Perform the actual Supabase signout
+    await supabase.auth.signOut();
+
+    // 3. Force a hard navigation to login to ensure complete state cleanup
+    window.location.href = '/login';
   };
 
   const handleLogin = () => {
@@ -219,10 +227,10 @@ export default function Header({ onSearch, onClearSearch }) {
   };
 
   return (
-    <header className="bg-[#F68537] text-white shadow-lg">
+    <header className="bg-[#F68537] text-white shadow-lg sticky top-0 z-50">
       <div className="h-16 flex items-center px-4 md:px-6">
         {/* Brand/Logo */}
-        <HeaderBrand 
+        <HeaderBrand
           isLoggedIn={isLoggedIn}
           user={user}
           userProfile={userProfile}
@@ -232,7 +240,7 @@ export default function Header({ onSearch, onClearSearch }) {
         <div className="flex-1"></div>
 
         {/* Desktop Navigation */}
-        <DesktopNav 
+        <DesktopNav
           isLoggedIn={isLoggedIn}
           notificationCount={notificationCount}
           sentRequestsCount={sentRequestsCount}
@@ -245,24 +253,24 @@ export default function Header({ onSearch, onClearSearch }) {
         />
 
         {/* Mobile Menu Toggle */}
-        <button 
-  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-  className="md:hidden p-2 focus:outline-none"
->
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    {isMobileMenuOpen ? (
-      // "X" Icon jab menu khula ho
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    ) : (
-      // "3 Lines" Icon jab menu band ho
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-    )}
-  </svg>
-</button>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="md:hidden p-2 focus:outline-none"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {isMobileMenuOpen ? (
+              // "X" Icon jab menu khula ho
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              // "3 Lines" Icon jab menu band ho
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
       </div>
 
       {/* Mobile Navigation */}
-      <MobileNav 
+      <MobileNav
         isOpen={isMobileMenuOpen}
         isLoggedIn={isLoggedIn}
         notificationCount={notificationCount}

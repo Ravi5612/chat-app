@@ -2,41 +2,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import Footer from '../components/Footer';
+
+
 export default function LandingPage() {
     const navigate = useNavigate();
 
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
             {/* 1. Header with Logo, Name, Links (Home, About, Contact, Signup, Login) */}
-            <nav className="bg-[#F68537] shadow-sm sticky top-0 z-50">
-                <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-                        <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain brightness-0 invert" />
-                        <span className="text-xl font-bold text-white">Chat Warrior</span>
-                    </div>
-
-                    <div className="hidden md:flex items-center gap-8 font-medium text-white">
-                        <button className="hover:text-orange-100 transition-colors">Home</button>
-                        <button className="hover:text-orange-100 transition-colors">About</button>
-                        <button className="hover:text-orange-100 transition-colors">Contact</button>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="hidden md:block px-5 py-2 rounded-full border border-white text-white hover:bg-white hover:text-[#F68537] transition-all font-medium"
-                        >
-                            Login
-                        </button>
-                        <button
-                            onClick={() => navigate('/signup')}
-                            className="px-5 py-2 rounded-full bg-white text-[#F68537] hover:bg-orange-50 hover:shadow-lg transition-all font-medium"
-                        >
-                            Sign Up
-                        </button>
-                    </div>
-                </div>
-            </nav>
 
             {/* 2. Hero Section: Content (Left) + Dynamic Screenshot (Right) */}
             <header className="flex-1 flex flex-col justify-center py-10 md:py-20 bg-gray-950 relative">
@@ -159,23 +133,8 @@ export default function LandingPage() {
             </section>
 
             {/* Footer */}
-            <footer className="bg-gray-950 text-white py-12 border-t border-gray-900">
-                <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
-                    <div className="flex items-center gap-2 mb-4 md:mb-0">
-                        <img src="/logo.png" alt="Logo" className="w-8 h-8 opacity-80 brightness-0 invert" />
-                        <span className="font-bold text-xl tracking-tight">Chat Warrior</span>
-                    </div>
-
-                    <div className="flex gap-6 text-gray-400 text-sm">
-                        <a href="#" className="hover:text-[#F68537] transition-colors">Privacy Policy</a>
-                        <a href="#" className="hover:text-[#F68537] transition-colors">Terms of Service</a>
-                        <a href="#" className="hover:text-[#F68537] transition-colors">Contact Support</a>
-                    </div>
-
-                    <p className="text-gray-600 text-sm mt-4 md:mt-0">© 2026 Chat Warrior Inc.</p>
-                </div>
-            </footer>
-        </div>
+            <Footer />
+        </div >
     );
 }
 

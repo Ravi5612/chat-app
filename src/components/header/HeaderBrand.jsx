@@ -24,22 +24,44 @@ export default function HeaderBrand({ isLoggedIn, user, userProfile, company }) 
   };
 
   return (
-    <div className="flex items-center space-x-2 md:space-x-3">
-      <img
-        src={isLoggedIn ? getAvatarUrl() : company.logo}
-        alt={isLoggedIn ? "User" : "Company"}
-        onClick={handleClick}
-        className={`object-cover cursor-pointer hover:opacity-80 transition-opacity ${isLoggedIn
-            ? 'w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-white'
-            : 'w-12 h-12 md:w-16 md:h-16 rounded-xl'
-          }`}
-      />
-      <span
-        onClick={handleClick}
-        className="font-semibold text-sm md:text-lg cursor-pointer hover:opacity-80 transition-opacity"
-      >
-        {isLoggedIn ? getDisplayName() : company.name}
-      </span>
+    <div className="flex items-center gap-3 relative group">
+      {isLoggedIn && user ? (
+        // ✅ Logged In User Style
+        <>
+          <img
+            src={getAvatarUrl()}
+            alt="User"
+            onClick={handleClick}
+            className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white/50 shadow-md object-cover flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
+          />
+          <span
+            onClick={handleClick}
+            className="hidden md:block text-base md:text-lg font-bold text-white tracking-wide cursor-pointer hover:text-orange-100 transition-colors drop-shadow-md font-sans normal-case whitespace-nowrap"
+          >
+            {getDisplayName()}
+          </span>
+        </>
+      ) : (
+        // ✅ Company Brand Style
+        <>
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/30 rounded-full blur-xl scale-75 group-hover:scale-110 transition-transform duration-500"></div>
+            <img
+              src={company.logo}
+              alt="Company"
+              onClick={handleClick}
+              className="relative object-cover cursor-pointer hover:scale-105 transition-transform duration-300 z-10 w-20 h-20 md:w-32 md:h-32 translate-y-3 md:translate-y-4 rounded-xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] filter brightness-110"
+            />
+          </div>
+          <span
+            onClick={handleClick}
+            className="text-lg md:text-2xl font-black tracking-wider text-white cursor-pointer hover:text-orange-100 transition-colors uppercase italic transform -skew-x-6 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)] [text-shadow:_2px_2px_0_rgb(180_83_9)]"
+            style={{ fontFamily: "'Arial Black', sans-serif" }}
+          >
+            {company.name}
+          </span>
+        </>
+      )}
     </div>
   );
 }

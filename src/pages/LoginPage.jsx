@@ -35,11 +35,11 @@ export default function LoginPage() {
 
   return (
     <div className="h-screen flex items-center justify-center bg-gradient-to-b from-[#FFF5E6] to-white">
-      <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="text-center mb-6">
-          <img src="/logo.png" alt="Chat Warrior Logo" className="w-20 h-20 mx-auto mb-4 object-contain drop-shadow-lg" />
-          <h1 className="text-3xl font-bold text-[#F68537]">Chat Warrior</h1>
-          <p className="text-gray-600 mt-2">Login to your account</p>
+      <div className="bg-white px-6 py-2 rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="text-center mb-0">
+          <img src="/logo.png" alt="Chat Warrior Logo" className="w-44 h-44 mx-auto mb-0 object-contain drop-shadow-xl" />
+          <h1 className="text-3xl font-bold text-[#F68537] -mt-12">Chat Warrior</h1>
+          <p className="text-gray-600 mt-0 text-sm">Login to your account</p>
         </div>
 
         {error && (
@@ -94,6 +94,15 @@ export default function LoginPage() {
                     <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                   </svg>
                 )}
+              </button>
+            </div>
+            <div className="flex justify-end mt-1">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm text-[#F68537] hover:underline hover:text-[#EAD8A4] transition-colors"
+              >
+                Forgot Password?
               </button>
             </div>
           </div>
